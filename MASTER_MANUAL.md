@@ -1,144 +1,109 @@
-# Manual Maestro: Elite Admin Suite v9.8 🏛️💎
+# Manual Técnico A-Z: Suite de Gestión Inteligente 🏛️💎
 
-Este manual detalla paso a paso (A-Z) cómo construir esta aplicación de gestión financiera generalista (Gimnasios, Negocios, Finanzas Personales) 100% funcional y automatizada.
+Este documento es una auditoría técnica y guía de construcción paso a paso para replicar la arquitectura de la aplicación **Iglesia JES**.
 
-## 📋 Fase 1: El Cerebro (Google Sheets & Apps Script)
+---
 
-### 1. La Base de Datos
-- Crea una hoja de cálculo en Google Sheets.
-- Crea un Formulario de Google para registrar: `Tipo` (Ingreso/Egreso), `Categoría`, `Concepto`, `Método`, `Monto Orig`, `Moneda`, `Tasa`.
-- Vincula el formulario a la hoja. Las respuestas aparecerán en una pestaña (usualmente `Form Responses 1`).
+## � Fase 1: Arquitectura de Datos (Google Sheets)
 
-### 2. El Motor de Automatización (Script Único)
-Ve a **Extensiones > Apps Script** en tu Google Sheets, borra todo y pega el siguiente código maestro. Este script automatiza la sincronización ISO, el Bot de Telegram, los Reportes de Cierre y la Edición desde el Dashboard.
+La base de datos debe ser una hoja de Google Sheets con una pestaña llamada `Base_Datos_Maestra`. A continuación, el detalle técnico de cada columna:
 
-> [!IMPORTANT]
-> Reemplaza los tokens de Telegram si deseas usar notificaciones automáticas.
+| Columna | Nombre Técnico | Tipo de Dato | Propósito y Lógica |
+| :--- | :--- | :--- | :--- |
+| **A** | `ID` | `TIMESTAMP` | Identificador único autogenerado por el script (`new Date().getTime()`). |
+| **B** | `Fecha` | `DATE` | Fecha del movimiento (YYYY-MM-DD). |
+| **C** | `Año` | `NUMBER` | Año extraído de la fecha para filtros rápidos. |
+| **D** | `Q` | `STRING` | Trimestre (Q1, Q2, Q3, Q4) para reportes financieros. |
+| **E** | `Mes` | `STRING` | ID del mes formateado como `01-ene`, `02-feb`, etc. (Crucial para el ordenamiento en el Dashboard). |
+| **F** | `Tipo` | `ENUM` | Valores permitidos: `Ingreso` o `Egreso`. Determina si suma o resta en el saldo. |
+| **G** | `Categoría` | `STRING` | Clasificación del rubro (ej: Diezmos, Ofrendas, Sueldos, Mantenimiento). |
+| **H** | `Concepto` | `STRING` | Descripción detallada del movimiento. |
+| **I** | `Método` | `ENUM` | Origen de los fondos: `Caja VES`, `Banco VES`, `Divisa (USD)`. |
+| **J** | `Monto Orig` | `NUMBER` | El monto nominal tal cual se recibió o pagó. |
+| **K** | `Moneda` | `ENUM` | `VES` o `USD`. |
+| **L** | `Tasa` | `NUMBER` | Tasa de cambio aplicada en el momento del registro. |
+| **M** | `Total USD` | `NUMBER` | Monto normalizado a USD (Monto / Tasa). Los egresos deben ser negativos. |
+| **N** | `Total VES` | `NUMBER` | Monto normalizado a Bolívares (Monto * Tasa). Los egresos deben ser negativos. |
+
+---
+
+## ⚙️ Fase 2: El Motor de Automatización (Apps Script)
+
+Este código es el "Cerebro" que vive en Google Sheets. Copia y pega esto en **Extensiones > Apps Script**:
 
 ```javascript
 /**
- * 🏛️ SISTEMA ADMINISTRATIVO ELITE - MASTER v9.8
- * Integrado para Dashboard Multi-Propósito (Gimnasios, Negocios, Finanzas).
+ * 🏛️ BACKEND MAESTRO v8.0 - ELITE SUITE
  */
 
-var TELEGRAM_TOKEN = "---TU_TOKEN_AQUÍ---";
-var TELEGRAM_CHAT_ID = "---TU_CHAT_ID_AQUÍ---";
+// --- 1. CONFIGURACIÓN ---
+var TELEGRAM_TOKEN = "---TU_TOKEN---";
+var TELEGRAM_CHAT_ID = "---TU_CHAT_ID---";
 
-// --- ACTIVADORES ---
+// --- 2. ACTIVADORES AUTOMÁTICOS ---
 function onOpen() {
-    SpreadsheetApp.getUi().createMenu('🏛️ Sistema Elite')
-        .addItem('🔄 Sincronizar Todo', 'SINCRONIZAR_TODO')
-        .addItem('💵 Actualizar Tasa BCV', 'actualizarTasaBCV')
-        .addToUi();
+  SpreadsheetApp.getUi().createMenu('🏛️ Administración')
+    .addItem('🔄 Sincronizar ISO', 'SINCRONIZAR_TODO')
+    .addItem('💵 Actualizar BCV', 'actualizarTasaBCV')
+    .addToUi();
 }
 
-function procesarFormulario(e) {
-    if (e && e.values) {
-        var info = registrarFila(e.values);
-        actualizarPanel();
-        var icono = info.tipo.includes("Ingreso") ? "🟢" : "🔴";
-        enviarTelegram(icono + " <b>NUEVO:</b> " + info.desc);
-    }
-}
-
-// --- CEREBRO: SINCRONIZACIÓN AUTOMÁTICA ---
-function SINCRONIZAR_TODO() {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var hojaEntradas = ss.getSheetByName("Form Responses 1") || ss.getSheetByName("ENTRADAS");
-    var hojaBase = ss.getSheetByName("Base_Datos_Maestra");
-    if (!hojaBase) hojaBase = ss.insertSheet("Base_Datos_Maestra");
-    hojaBase.clearContents();
-    hojaBase.appendRow(["ID", "Fecha", "Año", "Q", "Mes", "Tipo", "Cat", "Desc", "Metodo", "Monto Orig", "Moneda", "Tasa", "Total USD", "Total VES"]);
-    
-    var datos = hojaEntradas.getDataRange().getValues();
-    for (var i = 1; i < datos.length; i++) { 
-        if (datos[i][0] !== "") registrarFila(datos[i]); 
-    }
-}
-
+// --- 3. LÓGICA DE REGISTRO INTELIGENTE ---
 function registrarFila(valores) {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var h = ss.getSheetByName("Base_Datos_Maestra");
-    var fechaManual = valores[2];
-    var fechaFinal = (fechaManual && fechaManual !== "") ? fechaManual : valores[0];
-    var t = valores[3], c = valores[4], d = valores[5], moneda = valores[6];
-    var mont = normalizar(valores[7]), tasa = normalizar(valores[8]);
-    if (!tasa || tasa === 0) tasa = 36.50; // Tasa por defecto
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var h = ss.getSheetByName("Base_Datos_Maestra") || ss.insertSheet("Base_Datos_Maestra");
+  
+  var fechaFinal = valores[2] || valores[0]; // Fecha manual o del sistema
+  var t = valores[3], c = valores[4], d = valores[5], moneda = valores[6];
+  var mont = parseFloat(String(valores[7]).replace(',','.')) || 0;
+  var tasa = parseFloat(String(valores[8]).replace(',','.')) || 36.5;
 
-    var usd = 0, ves = 0;
-    if (String(moneda).includes("USD")) { usd = mont; ves = mont * tasa; }
-    else { usd = mont / tasa; ves = mont; }
-    if (String(t).includes("Egreso")) { usd *= -1; ves *= -1; }
+  var usd = 0, ves = 0;
+  if (String(moneda).includes("USD")) { usd = mont; ves = mont * tasa; }
+  else { usd = mont / tasa; ves = mont; }
+  
+  if (String(t).includes("Egreso")) { usd *= -1; ves *= -1; }
 
-    var fObj = new Date(fechaFinal);
-    var mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
-    var mesTxt = mesNombres[fObj.getMonth()];
+  var fObj = new Date(fechaFinal);
+  var mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
+  var mesTxt = mesNombres[fObj.getMonth()];
 
-    h.appendRow([new Date().getTime(), fechaFinal, fObj.getFullYear(), "Q", mesTxt, t, c, d, valores[9], mont, moneda, tasa, usd, ves]);
-    return { tipo: t, desc: d };
+  h.appendRow([new Date().getTime(), fechaFinal, fObj.getFullYear(), "Q", mesTxt, t, c, d, valores[9], mont, moneda, tasa, usd, ves]);
+  return { success: true };
 }
 
-// --- API PARA EL DASHBOARD (GET / POST) ---
+// --- 4. API PARA EL FRONTEND (REACT) ---
 function doGet(e) {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var hoja = ss.getSheetByName("Base_Datos_Maestra");
-    var values = hoja.getDataRange().getValues();
-    var cleanData = values.map(function(r) {
-        return r.map(function(c) { if (c instanceof Date) return c.toISOString(); return c; });
-    });
-    return ContentService.createTextOutput(JSON.stringify({ success: true, data: cleanData })).setMimeType(ContentService.MimeType.JSON);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var h = ss.getSheetByName("Base_Datos_Maestra");
+  var values = h.getDataRange().getValues();
+  var cleanData = values.map(row => row.map(cell => (cell instanceof Date) ? cell.toISOString() : cell));
+  return ContentService.createTextOutput(JSON.stringify({ success: true, data: cleanData })).setMimeType(ContentService.MimeType.JSON);
 }
-
-function doPost(e) {
-    var request = JSON.parse(e.postData.contents);
-    if (request.action === 'updateRow') {
-        var res = updateRowData(request.data);
-        return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
-    }
-}
-
-function updateRowData(rowObj) {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var h = ss.getSheetByName("Base_Datos_Maestra");
-    var data = h.getDataRange().getValues();
-    var idToFind = String(rowObj.id);
-    for (var i = 1; i < data.length; i++) {
-        if (String(data[i][0]) === idToFind) {
-            h.getRange(i + 1, 7).setValue(rowObj.cat);
-            h.getRange(i + 1, 8).setValue(rowObj.desc);
-            return { success: true };
-        }
-    }
-    return { success: false };
-}
-
-function normalizar(v) { 
-    var t = String(v); 
-    if (t.includes('.') && t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); 
-    else if (t.includes(',')) t = t.replace(',', '.'); 
-    return parseFloat(t) || 0; 
-}
-
-function enviarTelegram(t) { try { UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendMessage", { "method": "post", "contentType": "application/json", "payload": JSON.stringify({ "chat_id": TELEGRAM_CHAT_ID, "text": t, "parse_mode": "HTML" }) }); } catch (e) { } }
 ```
 
 ---
 
-## 💻 Fase 2: El Corazón Frontend (A-Z)
+## 🧪 Fase 3: Auditoría de Lógica Frontend (App.tsx)
 
-### 3. Implementación del Dashboard
-El Dashboard está construido con **React + Recharts** para una visualización fluida.
-- **Normalización**: El frontend agrupa los datos automáticamente por día o por mes según el filtro activo.
-- **Smart Balance**: Los saldos siempre arrastran el acumulado histórico, mientras que el flujo neto es relativo al mes.
+### 1. El "Smart Running Balance"
+El Dashboard no solo filtra, sino que **calcula el historial**.
+- **Lógica**: Si seleccionas `Feb`, el script recorre todos los registros de `Ene` y `Feb`.
+- **Por qué?**: Porque el dinero en el banco no desaparece al cambiar de mes; se acumula.
 
----
+### 2. Normalización de Meses (The Fix)
+El frontend utiliza una función `normalizeMonth` que asegura que `01-ene` sea siempre diferente a `january` o `01`, permitiendo que la App lea cualquier base de datos.
 
-## 🚀 Fase 3: Despliegue & Hosting
-
-### 4. Publicación Web
-1. Sube tu código a **GitHub**.
-2. Conéctalo a **Vercel**.
-3. **Punto Crítico**: Al publicar el script de Google como "Web App", asegúrate de dar acceso a "Anyone" (Cualquiera) para que el Dashboard pueda leer los datos.
+### 3. Responsive Elite
+- **Mobile**: Los botones de acción se mueven a la cabecera (Header) para fácil acceso con el pulgar.
+- **Desktop**: Panel lateral expandido para visión periférica de la organización.
 
 ---
-**Elite Management Suite • Plantilla Maestra v9.8**
+
+## 🚀 Fase 4: Despliegue (Checkout)
+1. **Git**: `git commit -m "v9.9 Final Gold"`
+2. **Vercel**: Conectar y desplegar.
+3. **Google API**: Publicar Script como "Web App" para "Anyone".
+
+---
+**Documento Auditado por Antigravity (2026)**
