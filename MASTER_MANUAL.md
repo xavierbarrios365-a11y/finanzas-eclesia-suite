@@ -1,7 +1,7 @@
 # Manual de Ingeniería: Elite Admin Suite A-Z 🏛️💎
 *Guía Definitiva para la Replicación de Sistemas Financieros Inteligentes*
 
-Este manual permite a cualquier persona (incluso sin conocimientos técnicos) activar un sistema financiero de élite con automatización de "1-Clic".
+Este manual permite a cualquier persona activar un sistema financiero de élite con automatización de "1-Clic", gestión de reportes y datos bancarios.
 
 ---
 
@@ -45,25 +45,25 @@ Antes de empezar, necesitas tus "llaves" de comunicación:
 
 ---
 
-## ⏰ Fase 3: Activadores (El Pulso del Sistema)
+## 📈 Fase 3: Gestión de Reportes y Datos Bancarios
+La aplicación ahora incluye herramientas avanzadas de administración:
 
-En la barra lateral izquierda de Apps Script (icono de reloj):
-1. **Dólar:** Añadir activador -> `actualizarTasaBCV` -> Según tiempo -> Cada 4 horas.
-2. **Cálculos:** Añadir activador -> `onFormSubmit` -> Del formulario -> Al enviarse.
+1. **Datos de Banco:** Pestaña diseñada para almacenar y compartir tus cuentas de pago. Puedes copiar los datos con un clic o imprimir la vista para enviarla como PDF/Imagen.
+2. **Reportes Mensuales:** Genera una síntesis profesional de tus finanzas (Ingresos vs Egresos + Top Categorías) usando el botón "Generar Síntesis PDF" (Print-to-PDF).
 
 ---
 
-## 🎨 Fase 4: El Traje (El Prompt de Oro)
-Si alguna vez necesitas que Antigravity (tu IA) cree o mejore la interfaz desde cero, dale este prompt EXACTO:
+## 🎨 Fase 4: El Traje (El Prompt de Oro - Actualizado)
+Usa este prompt para que la IA recree el sistema completo con las nuevas funciones:
 
-> **PROMPT MASTER UI:**
-> "Actúa como un Ingeniero Senior de UI/UX. Crea una Single Page Application en React (Vite + Tailwind o Vanilla CSS) con estética 'Gold Edition' (vidrio, gradientes profundos, modo oscuro premium).
-> Requisitos:
-> 1. Dashboard con KPIs: Saldo Caja USD, Saldo Banco VES, Saldo Caja VES, Saldo Total, Histórico Devaluación.
-> 2. Gráfico ComposedChart de Recharts con tendencia neta mensual.
-> 3. Tablas animadas para Ingresos y Egresos con filtrado por mes y búsqueda inteligente.
-> 4. Botón flotante 'NUEVO INGRESO/EGRESO' que abra la `FORM_URL` en otra pestaña.
-> 5. Integración con `API_URL` de Google Apps Script para `fetchData`."
+> **PROMPT MASTER UI v10.5:**
+> "Actúa como un Ingeniero Senior de UI/UX. Crea una SPA en React con estética 'Gold Edition'.
+> Requisitos Core:
+> 1. Dashboard con KPIs y ComposedChart de Recharts.
+> 2. Tablas animadas para Ingresos/Egresos.
+> 3. **Módulo de Datos Bancarios**: Tarjetas estilizadas con función de copiado y botón de impresión.
+> 4. **Módulo de Reportes**: Síntesis financiera mensual automatizada con visualización de categorías top y botón de exportación PDF.
+> 5. **Mobile First**: Diseño adaptativo con sidebar profesional y botones de acción rápidos."
 
 ---
 
@@ -154,8 +154,7 @@ function enviarAlertaTelegram(v, usd) {
   const msg = `${v.tipo.includes("Ingreso") ? "💰" : "💸"} *Nuevo Registro*\n*${v.desc}*\n*Monto:* ${Math.abs(usd).toFixed(2)} USD`;
   UrlFetchApp.fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`);
 }
-
 ```
 
 ---
-**Elite Admin Suite • Versión 10.0 Gold Edition (2026)**
+**Elite Admin Suite • Versión 10.5 Gold Edition (2026)**

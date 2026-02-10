@@ -10,13 +10,22 @@ import {
   TrendingDown as DevaluationIcon, Search, Info, Coins, Bug, Globe,
   ArrowLeft, ArrowRight, LineChart, PlusCircle, Filter,
   Edit3, ExternalLink, CheckCircle2, AlertCircle, Layers, TrendingUp, ShieldCheck,
-  LayoutDashboard, ArrowUpCircle, ArrowDownCircle, BadgeCheck, Sun, Moon, X, Target, Landmark
+  LayoutDashboard, ArrowUpCircle, ArrowDownCircle, BadgeCheck, Sun, Moon, X, Target, Landmark,
+  Share2, FileText, Download, Copy, Check, Printer, FileDown
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN v9.7: SMART RUNNING BALANCE SUITE ---
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 const API_URL = 'https://script.google.com/macros/s/AKfycbxv-o6l6-SZeeoRfQyN8wHMcm4aoHlJT6vJ42xXU5L2--dcVN8-IBCh5naUSDt8_98/exec';
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSc4F3QHE9zfASEjS0eS5x5X0PjvAGm_G33AEC2AJR5yy9FQoQ/viewform';
+
+const BANK_CONFIG = {
+  bank: "Mercantil",
+  phone: "04126856037",
+  id: "9562664",
+  code: "0105",
+  note: "Envía capture al número telefónico"
+};
 
 const MONTH_MAP: any = {
   "01": "01-ene", "02": "02-feb", "03": "03-mar", "04": "04-abr",
@@ -40,7 +49,7 @@ const App: React.FC = () => {
   const [syncing, setSyncing] = useState<boolean>(false);
   const [tasa, setTasa] = useState<number>(36.50);
   const [filtroActivo, setFiltroActivo] = useState<string>("ANUAL");
-  const [activeTab, setActiveTab] = useState<'dash' | 'income' | 'expense' | 'audit'>('dash');
+  const [activeTab, setActiveTab] = useState<'dash' | 'income' | 'expense' | 'audit' | 'bank' | 'reports'>('dash');
   const [isDark, setIsDark] = useState(true);
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const [searchCat, setSearchCat] = useState<string>("");
@@ -219,6 +228,8 @@ const App: React.FC = () => {
           <NavBtn active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<ArrowUpCircle />} label="Ingresos" isDark={isDark} />
           <NavBtn active={activeTab === 'expense'} onClick={() => setActiveTab('expense')} icon={<ArrowDownCircle />} label="Egresos" isDark={isDark} />
           <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />
+          <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />
+          <NavBtn active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<FileText />} label="Reportes" isDark={isDark} />
         </div>
 
         <div className="hidden md:block mt-auto p-4 border-t border-white/5 space-y-2">
@@ -373,6 +384,91 @@ const App: React.FC = () => {
           )}
         </div>
 
+        {activeTab === 'bank' && (
+          <div className="animate-in fade-in zoom-in duration-500 space-y-8 max-w-4xl mx-auto">
+            <div className={`${cardClass} rounded-[3rem] overflow-hidden shadow-3xl`}>
+              <div className="p-10 border-b border-white/5 bg-gradient-to-br from-blue-600/10 to-transparent flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-black uppercase tracking-tighter">Datos de Pago Institucional</h2>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">Comparte estos datos para recibir ofrendas o pagos</p>
+                </div>
+                <button onClick={() => window.print()} className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-500 transition-all shadow-xl shadow-blue-500/20 active:scale-95 no-print">
+                  <Printer className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-10 flex flex-col items-center justify-center space-y-8">
+                <div className="max-w-md w-full">
+                  <BankCard
+                    bank={BANK_CONFIG.bank}
+                    owner="Dato de Pago"
+                    id={`C.I. ${BANK_CONFIG.id}`}
+                    acc={BANK_CONFIG.phone}
+                    type={`Pago Móvil (${BANK_CONFIG.code})`}
+                    isDark={isDark}
+                  />
+                  <div className={`mt-6 p-6 rounded-2xl border ${isDark ? 'bg-blue-500/5 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-700'} text-center`}>
+                    <p className="text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+                      <Info className="w-4 h-4" /> {BANK_CONFIG.note}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'reports' && (
+          <div className="animate-in fade-in slide-in-from-bottom-10 duration-700 space-y-8">
+            <div className={`${cardClass} rounded-[3rem] overflow-hidden p-10`}>
+              <div className="flex justify-between items-center mb-12">
+                <div>
+                  <h2 className="text-2xl font-black uppercase tracking-tighter">Centro de Reportes Inteligentes</h2>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">{filtroActivo === "ANUAL" ? "REPORTE CONSOLIDADO ANUAL" : `REPORTE MENSUAL: ${filtroActivo.toUpperCase()}`}</p>
+                </div>
+                <button onClick={() => window.print()} className="flex items-center gap-3 px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-500/20 no-print">
+                  <FileDown className="w-5 h-5" /> Generar Sintesis PDF
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className={`p-8 rounded-[2rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'}`}>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 text-emerald-500">Total Ingresos</p>
+                      <h4 className="text-3xl font-black tracking-tighter">${stats.m.in.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h4>
+                    </div>
+                    <div className={`p-8 rounded-[2rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'}`}>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 text-rose-500">Total Egresos</p>
+                      <h4 className="text-3xl font-black tracking-tighter">${stats.m.out.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h4>
+                    </div>
+                  </div>
+                  <div className={`p-8 rounded-[2.5rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'}`}>
+                    <h3 className="text-xs font-black uppercase tracking-widest mb-6 opacity-50">Desglose de Categorias Top</h3>
+                    <div className="space-y-4">
+                      {stats.p.in.slice(0, 3).map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center">
+                          <span className="text-[10px] font-black uppercase tracking-tight">{item.name}</span>
+                          <div className="flex-1 mx-4 h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500" style={{ width: `${(item.value / stats.m.in) * 100}%` }} />
+                          </div>
+                          <span className="text-[11px] font-black">${item.value.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className={`p-8 rounded-[2.5rem] ${isDark ? 'bg-blue-600 text-white shadow-2xl shadow-blue-500/20' : 'bg-blue-700 text-white shadow-xl'} flex flex-col justify-center items-center text-center`}>
+                  <ShieldCheck className="w-16 h-16 mb-6 opacity-50" />
+                  <h3 className="text-lg font-black uppercase tracking-tighter leading-tight mb-2">Certificación de Auditoría</h3>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.2em] opacity-80 mb-8 border-t border-white/20 pt-4">Balance General Validado</p>
+                  <div className="text-4xl font-black tracking-tighter mb-2">${(stats.m.in - stats.m.out).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Superávit / Déficit del Periodo</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* AUDIT MODAL MODERNO */}
         {isEditModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl">
@@ -475,6 +571,33 @@ const Pagination = ({ cur, total, onCh, isDark }: any) => (
     <button onClick={() => onCh(Math.min(total, cur + 1))} disabled={cur >= total} className={`p-4 rounded-2xl ${isDark ? 'bg-white/5 hover:bg-white/10 border-white/5' : 'bg-white hover:bg-slate-50 border-slate-200 shadow-sm'} border disabled:opacity-20 transition-all`}><ArrowRight className="w-4 h-4" /></button>
   </div>
 );
+
+const BankCard = ({ bank, owner, id, acc, type, isDark }: any) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(`${bank}: ${acc} (${owner})`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className={`p-8 rounded-[2rem] border transition-all hover:scale-[1.02] group ${isDark ? 'bg-white/[0.03] border-white/5 hover:border-blue-500/30' : 'bg-slate-50 border-slate-200 hover:border-blue-500/30 shadow-lg shadow-slate-200/50'}`}>
+      <div className="flex justify-between items-start mb-6 no-print">
+        <div className="p-3 bg-blue-600/10 rounded-xl text-blue-500"><Landmark className="w-6 h-6" /></div>
+        <button onClick={handleCopy} className={`p-2 rounded-lg transition-all ${copied ? 'bg-emerald-500/10 text-emerald-500' : 'hover:bg-white/10 text-slate-500'}`}>
+          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+        </button>
+      </div>
+      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{bank}</p>
+      <h3 className={`text-xl font-black tracking-tighter mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>{acc}</h3>
+      <div className="space-y-1.5 opacity-60">
+        <p className="text-[10px] font-black uppercase tracking-tight">{owner}</p>
+        <p className="text-[10px] font-black uppercase tracking-tight">{id}</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-blue-500 italic mt-2">{type}</p>
+      </div>
+    </div>
+  );
+};
 
 const AsientoRow = ({ r, isDark, showAudit, onAudit }: any) => {
   const isI = r.tipo.includes('ingreso');
