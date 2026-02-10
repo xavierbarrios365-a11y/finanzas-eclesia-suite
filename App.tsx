@@ -193,8 +193,8 @@ const App: React.FC = () => {
   if (loading) return (
     <div className={`min-h-screen ${themeClass} flex items-center justify-center`}>
       <div className="text-center animate-pulse">
-        <Building2 className={`w-14 h-14 mx-auto mb-6 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
-        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Elite Admin Suite v9.8</p>
+        <Church className={`w-14 h-14 mx-auto mb-6 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
+        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Iglesia JES v9.7</p>
       </div>
     </div>
   );
@@ -206,10 +206,10 @@ const App: React.FC = () => {
       <nav className={`fixed bottom-0 md:relative w-full md:w-64 ${navClass} border-t md:border-t-0 md:border-r z-50 md:h-screen flex md:flex-col overflow-hidden`}>
         <div className="hidden md:flex p-6 items-center gap-3 border-b border-white/5 h-24">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/30">
-            <Building2 className="text-white w-6 h-6" />
+            <Church className="text-white w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xs font-black uppercase tracking-tighter">Elite <span className="text-blue-500">Admin</span></h1>
+            <h1 className="text-xs font-black uppercase tracking-tighter">Iglesia <span className="text-blue-500">JES</span></h1>
             <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Gestión Inteligente</p>
           </div>
         </div>
