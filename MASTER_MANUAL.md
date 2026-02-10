@@ -1,39 +1,107 @@
 # Manual de Ingeniería: Elite Admin Suite A-Z 🏛️💎
 *Guía Definitiva para la Replicación de Sistemas Financieros Inteligentes*
 
-Este manual está diseñado para ser seguido por cualquier persona, desde un ingeniero hasta un niño de 10 años. Sigue los pasos EXACTAMENTE como se describen.
+Este manual permite a cualquier persona (incluso sin conocimientos técnicos) activar un sistema financiero de élite con automatización de "1-Clic".
 
 ---
 
-## 👥 Definición de Roles
-- **Antigravity (Tu IA):** Se encarga de escribir el código (`App.tsx`, `Code.gs`), configurar la lógica de APIs y diseñar la interfaz.
-- **Humano (Tú):** Te encargas de crear archivos, copiar/pegar URLs de Google, otorgar permisos y configurar tokens de Telegram.
+## 👥 Roles
+- **Antigravity (IA):** Escribe el código y diseña la experiencia premium.
+- **Humano (Tú):** Sigue los pasos y conecta las piezas.
 
 ---
 
-## 🛠️ Fase 1: El Terreno (Cuenta y Carpetas)
-1. Inicia sesión en tu cuenta de **Google**.
-2. Ve a [Google Drive](https://drive.google.com).
-3. Crea una carpeta llamada `SISTEMA_FINANCIERO`.
-4. Dentro, crea una nueva **Hoja de Cálculo** llamada `Base de Datos Elite`.
+## 🔑 Fase 0: Credenciales Estelares (Telegram)
+Antes de empezar, necesitas tus "llaves" de comunicación:
 
-## 📊 Fase 2: El Cerebro (Estructura de la Tabla)
-Abre tu Hoja de Cálculo y nombra la primera pestaña como **"BD"**. En la fila 1, escribe estos encabezados EXACTAMENTE:
-**ID | Fecha | Año | Q | Mes | Tipo | Cat | Desc | Metodo | Monto | Moneda | Tasa | USD Eq | VES Eq**
+1. **Obtener el TOKEN del Bot:**
+   - Busca a `@BotFather` en Telegram.
+   - Escribe `/newbot`, dale un nombre y un usuario (debe terminar en `_bot`).
+   - Copia el código largo que te da (ej: `78234:ABC...`). **Ese es tu TOKEN**.
+2. **Obtener tu CHAT_ID:**
+   - Busca a `@IDBot` (o `@userinfobot`) en Telegram.
+   - Escribe `/getid` (o `/start`).
+   - Copia el número que te da (ej: `12345678`). **Ese es tu CHAT_ID**.
 
-## ⚙️ Fase 3: El Motor (Apps Script Backend)
-1. En tu Hoja de Cálculo, ve a **Extensiones > Apps Script**.
-2. Borra todo lo que aparezca y pega este código:
+---
+
+## 🛠️ Fase 1: El Cerebro (Automatización de 1-Clic)
+
+1. Ve a [Google Sheets](https://sheets.new) y crea una hoja llamada `Base de Datos Elite`.
+2. Ve a **Extensiones > Apps Script**.
+3. Borra todo y pega el **CÓDIGO MASTER** (al final de este manual).
+4. Reemplaza `TU_BOT_TOKEN_AQUI` y `TU_CHAT_ID_AQUI` por los que obtuviste en la Fase 0.
+5. Guarda con el nombre `Backend Master`.
+6. En la barra superior, selecciona la función `setupSystem` y dale clic a **"Ejecutar"**.
+   - *Acepta los permisos de Google (Configuración Avanzada > Ir a Backend Master > Permitir).*
+7. **RESULTADO:** Se crearán la pestaña `BD` con formato profesional y el **Formulario de Registro**.
+
+---
+
+## 🔗 Fase 2: Conexión y Formulario
+
+1. **API URL:** Clic en **"Implementar" (Deploy) > "Nueva implementación"** -> Tipo: "Aplicación Web" -> Quién puede acceder: "Cualquier persona". Copia la URL (será tu `API_URL`).
+2. **Formulario:** Ve a tu Google Drive, abre el nuevo archivo "Formulario de Registro Elite". Dale a **"Enviar" (Send)** -> icono de enlace -> Copia el enlace. **Esa es tu `FORM_URL`**.
+
+---
+
+## ⏰ Fase 3: Activadores (El Pulso del Sistema)
+
+En la barra lateral izquierda de Apps Script (icono de reloj):
+1. **Dólar:** Añadir activador -> `actualizarTasaBCV` -> Según tiempo -> Cada 4 horas.
+2. **Cálculos:** Añadir activador -> `onFormSubmit` -> Del formulario -> Al enviarse.
+
+---
+
+## 🎨 Fase 4: El Traje (El Prompt de Oro)
+Si alguna vez necesitas que Antigravity (tu IA) cree o mejore la interfaz desde cero, dale este prompt EXACTO:
+
+> **PROMPT MASTER UI:**
+> "Actúa como un Ingeniero Senior de UI/UX. Crea una Single Page Application en React (Vite + Tailwind o Vanilla CSS) con estética 'Gold Edition' (vidrio, gradientes profundos, modo oscuro premium).
+> Requisitos:
+> 1. Dashboard con KPIs: Saldo Caja USD, Saldo Banco VES, Saldo Caja VES, Saldo Total, Histórico Devaluación.
+> 2. Gráfico ComposedChart de Recharts con tendencia neta mensual.
+> 3. Tablas animadas para Ingresos y Egresos con filtrado por mes y búsqueda inteligente.
+> 4. Botón flotante 'NUEVO INGRESO/EGRESO' que abra la `FORM_URL` en otra pestaña.
+> 5. Integración con `API_URL` de Google Apps Script para `fetchData`."
+
+---
+
+## 🤖 Código Master (Copiar y Pegar)
 
 ```javascript
 /**
- * BACKEND CORE: ELITE ADMIN SUITE v10.0
- * Este código maneja la base de datos, API y alertas de Telegram.
+ * ELITE ADMIN SUITE v10.0 - CORE ENGINE
+ * Automatización total de Base de Datos y Formulario.
  */
 
-const SHEET_NAME = "BD"; 
+const SHEET_NAME = "BD";
 const TELEGRAM_TOKEN = "TU_BOT_TOKEN_AQUI"; 
 const TELEGRAM_CHAT_ID = "TU_CHAT_ID_AQUI";
+
+function setupSystem() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+  
+  const headers = ["ID", "Fecha", "Año", "Q", "Mes", "Tipo", "Cat", "Desc", "Metodo", "Monto", "Moneda", "Tasa", "USD Eq", "VES Eq"];
+  sh.getRange(1, 1, 1, headers.length).setValues([headers])
+    .setBackground("#1e293b").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  sh.setFrozenRows(1);
+
+  const form = FormApp.create("Formulario de Registro Elite");
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+  form.addDateItem().setTitle("Fecha").setRequired(true);
+  form.addMultipleChoiceItem().setTitle("Tipo").setChoiceValues(["Ingreso", "Egreso"]).setRequired(true);
+  form.addListItem().setTitle("Categoría").setChoiceValues(["General", "Diezmos", "Ofrendas", "Inversión", "Personal", "Gastos Fijos", "Marketing", "Mantenimiento"]).setRequired(true);
+  form.addTextItem().setTitle("Descripción").setRequired(true);
+  form.addListItem().setTitle("Método").setChoiceValues(["Efectivo USD", "Efectivo VES", "Banco VES", "Zelle", "Binance/Cripto"]).setRequired(true);
+  form.addTextItem().setTitle("Monto").setRequired(true);
+  form.addMultipleChoiceItem().setTitle("Moneda").setChoiceValues(["USD", "VES"]).setRequired(true);
+  form.addTextItem().setTitle("Tasa (Opcional)").setHelpText("Si dejas vacío, usa la del día.");
+
+  Logger.log("✅ SISTEMA CONFIGURADO");
+  Logger.log("🔗 URL FORMULARIO: " + form.getPublishedUrl());
+}
 
 function doPost(e) {
   try {
@@ -46,37 +114,30 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(SHEET_NAME);
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
   const data = sh.getDataRange().getValues();
-  const cleanData = data.map(r => r.map(c => (c instanceof Date) ? c.toISOString() : c));
-  return ContentService.createTextOutput(JSON.stringify({success: true, data: cleanData})).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({success: true, data: data.map(r => r.map(c => (c instanceof Date) ? c.toISOString() : c))})).setMimeType(ContentService.MimeType.JSON);
+}
+
+function onFormSubmit(e) {
+  const res = e.values; 
+  const v = {
+    fecha: res[1], tipo: res[2], cat: res[3], desc: res[4], met: res[5],
+    monto: Number(res[6]), moneda: res[7], tasa: Number(res[8])
+  };
+  registrarFila(v);
 }
 
 function registrarFila(v) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const h = ss.getSheetByName(SHEET_NAME);
-  const fObj = new Date(v.fecha || new Date());
-  const ano = fObj.getFullYear();
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const fObj = new Date(v.fecha + "T12:00:00");
   const mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
-  const mesTxt = mesNombres[fObj.getMonth()];
-  const q = "Q" + (Math.floor(fObj.getMonth() / 3) + 1);
-  const id = new Date().getTime();
-
-  let usdEq = 0, vesEq = 0;
-  const monto = Number(v.monto);
-  const tasa = Number(v.tasa);
+  const tasa = v.tasa || Number(PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL")) || 36.5;
   const factor = v.tipo.toLowerCase().includes("ingreso") ? 1 : -1;
+  const usdEq = v.moneda === "USD" ? v.monto * factor : (v.monto / tasa) * factor;
+  const vesEq = v.moneda === "VES" ? v.monto * factor : (v.monto * tasa) * factor;
 
-  if (v.moneda === "USD") {
-    usdEq = monto * factor;
-    vesEq = monto * tasa * factor;
-  } else {
-    vesEq = monto * factor;
-    usdEq = (monto / tasa) * factor;
-  }
-
-  h.appendRow([id, v.fecha, ano, q, mesTxt, v.tipo, v.cat, v.desc, v.met, monto, v.moneda, tasa, usdEq, vesEq]);
+  sh.appendRow([new Date().getTime(), v.fecha, fObj.getFullYear(), "Q" + (Math.floor(fObj.getMonth() / 3) + 1), mesNombres[fObj.getMonth()], v.tipo, v.cat, v.desc, v.met, v.monto, v.moneda, tasa, usdEq, vesEq]);
   enviarAlertaTelegram(v, usdEq);
 }
 
@@ -84,62 +145,17 @@ function actualizarTasaBCV() {
   try {
     const res = UrlFetchApp.fetch("https://ve.dolarapi.com/v1/dolares/oficial");
     const json = JSON.parse(res.getContentText());
-    if (json.promedio) {
-      PropertiesService.getScriptProperties().setProperty("TASA_ACTUAL", json.promedio);
-    }
+    if (json.promedio) PropertiesService.getScriptProperties().setProperty("TASA_ACTUAL", json.promedio);
   } catch (e) {}
 }
 
 function enviarAlertaTelegram(v, usd) {
   if (TELEGRAM_TOKEN === "TU_BOT_TOKEN_AQUI") return;
-  const emoji = v.tipo.toLowerCase().includes("ingreso") ? "💰" : "💸";
-  const msg = `${emoji} *Nuevo Registro Financiero*\n\n` +
-              `*Concepto:* ${v.desc}\n` +
-              `*Monto:* ${Math.abs(usd).toFixed(2)} USD\n` +
-              `*Fecha:* ${v.fecha}`;
-  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`;
-  UrlFetchApp.fetch(url);
+  const msg = `${v.tipo.includes("Ingreso") ? "💰" : "💸"} *Nuevo Registro*\n*${v.desc}*\n*Monto:* ${Math.abs(usd).toFixed(2)} USD`;
+  UrlFetchApp.fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`);
 }
+
 ```
-
-3. Guarda el proyecto con el nombre "Backend Master".
-
-## 🔗 Fase 4: Conexión API (doGet)
-1. En el editor de Apps Script, dale clic al botón azul **"Implementar" (Deploy) > "Nueva implementación"**.
-2. Selecciona **"Aplicación Web"**.
-3. En "Quién puede acceder", selecciona **"Cualquier persona" (Anyone)**.
-4. Copia la URL que te da (termina en `/exec`). **Esta es tu `API_URL`**.
-
-## ⏰ Fase 5: El Reloj (Activadores de Dólar)
-1. En la barra lateral izquierda de Apps Script, dale clic al icono de reloj (**Activadores**).
-2. "Añadir activador".
-3. Función: `actualizarTasaBCV`.
-4. Evento: **Según tiempo > Temporizador de horas > Cada 4 horas**.
-   *Esto mantiene el precio del dólar siempre al día sin que tú hagas nada.*
-
-## 🤖 Fase 6: Lógica Telegram (Alertas)
-Para recibir alertas en tu móvil:
-1. Habla con `@BotFather` en Telegram para crear un Bot y obtener el **TOKEN**.
-2. Habla con `@userinfobot` para obtener tu **CHAT_ID**.
-3. Pega estos datos en tu `Code.gs`.
-
-## 🎨 Fase 7: El Traje (Configuración del Frontend)
-1. Asegúrate de tener **Node.js** instalado.
-2. Abre la terminal en tu carpeta de proyecto React.
-3. Edita `App.tsx` y reemplaza la `API_URL` por la que obtuviste en la **Fase 4**.
-
-## 📱 Fase 8: Mobile UX (Iconos y Botones)
-- El botón **"NUEVO INGRESO/EGRESO"** está arriba para que sea lo primero que toques en el móvil.
-- El sistema detecta automáticamente si estás en Dark Mode o Light Mode según tu teléfono.
-
-## 🚀 Fase 9: A la Nube (Vercel)
-1. Sube tu código a **GitHub**.
-2. Conecta GitHub con **Vercel**.
-3. Vercel te dará una URL pública instalable en tu iPhone o Android como una WebApp.
-
-## 👨‍🔧 Fase 10: Mantenimiento y Auditoría
-- **Auditoría:** En el dashboard, pestaña "Auditoría", puedes corregir cualquier error.
-- **Sincronización:** Dale clic al botón circular de flechas para traer los datos más nuevos de Google Sheets.
 
 ---
 **Elite Admin Suite • Versión 10.0 Gold Edition (2026)**
