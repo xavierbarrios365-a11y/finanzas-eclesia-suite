@@ -16,7 +16,7 @@ import {
 // --- CONFIGURACIÓN v9.7: SMART RUNNING BALANCE SUITE ---
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 const API_URL = 'https://script.google.com/macros/s/AKfycbxv-o6l6-SZeeoRfQyN8wHMcm4aoHlJT6vJ42xXU5L2--dcVN8-IBCh5naUSDt8_98/exec';
-const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSc4F3QHE9zfASEjS0eS5x5X0PjvAGm_G33AEC2AJR5yy9FQoQ/viewform?usp=sharing&ouid=107728327215093587965';
+const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSc4F3QHE9zfASEjS0eS5x5X0PjvAGm_G33AEC2AJR5yy9FQoQ/viewform';
 
 const MONTH_MAP: any = {
   "01": "01-ene", "02": "02-feb", "03": "03-mar", "04": "04-abr",
@@ -225,9 +225,6 @@ const App: React.FC = () => {
           <button onClick={() => setIsDark(!isDark)} className="w-full h-11 flex items-center justify-center gap-2 bg-white/5 rounded-xl text-[10px] font-black uppercase border border-white/5 hover:bg-white/10 transition-all">
             {isDark ? <><Sun className="w-4 h-4 text-amber-500" /> Claro</> : <><Moon className="w-4 h-4 text-blue-500" /> Oscuro</>}
           </button>
-          <button onClick={() => window.open(FORM_URL, '_blank')} className="w-full bg-blue-600 text-white h-11 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-blue-500 shadow-xl shadow-blue-900/40">
-            <PlusCircle className="w-4 h-4" /> Nuevo Asiento
-          </button>
         </div>
       </nav>
 
@@ -244,7 +241,10 @@ const App: React.FC = () => {
             ))}
           </div>
           <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
-            <div className={`flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'} px-5 py-2 rounded-xl border`}>
+            <button onClick={() => window.open(FORM_URL, '_blank')} className="flex-1 lg:flex-none bg-blue-600 text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-blue-500 shadow-lg shadow-blue-900/20">
+              <PlusCircle className="w-4 h-4" /> Nuevo Ingreso/Egreso
+            </button>
+            <div className={`hidden sm:flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'} px-5 py-2 rounded-xl border`}>
               <span className="text-[8px] font-black text-slate-500 uppercase">Tasa BCV</span>
               <span className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{tasa.toFixed(2)}</span>
             </div>

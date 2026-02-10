@@ -1,109 +1,145 @@
-# Manual Técnico A-Z: Suite de Gestión Inteligente 🏛️💎
+# Manual de Ingeniería: Elite Admin Suite A-Z 🏛️💎
+*Guía Definitiva para la Replicación de Sistemas Financieros Inteligentes*
 
-Este documento es una auditoría técnica y guía de construcción paso a paso para replicar la arquitectura de la aplicación **Iglesia JES**.
-
----
-
-## � Fase 1: Arquitectura de Datos (Google Sheets)
-
-La base de datos debe ser una hoja de Google Sheets con una pestaña llamada `Base_Datos_Maestra`. A continuación, el detalle técnico de cada columna:
-
-| Columna | Nombre Técnico | Tipo de Dato | Propósito y Lógica |
-| :--- | :--- | :--- | :--- |
-| **A** | `ID` | `TIMESTAMP` | Identificador único autogenerado por el script (`new Date().getTime()`). |
-| **B** | `Fecha` | `DATE` | Fecha del movimiento (YYYY-MM-DD). |
-| **C** | `Año` | `NUMBER` | Año extraído de la fecha para filtros rápidos. |
-| **D** | `Q` | `STRING` | Trimestre (Q1, Q2, Q3, Q4) para reportes financieros. |
-| **E** | `Mes` | `STRING` | ID del mes formateado como `01-ene`, `02-feb`, etc. (Crucial para el ordenamiento en el Dashboard). |
-| **F** | `Tipo` | `ENUM` | Valores permitidos: `Ingreso` o `Egreso`. Determina si suma o resta en el saldo. |
-| **G** | `Categoría` | `STRING` | Clasificación del rubro (ej: Diezmos, Ofrendas, Sueldos, Mantenimiento). |
-| **H** | `Concepto` | `STRING` | Descripción detallada del movimiento. |
-| **I** | `Método` | `ENUM` | Origen de los fondos: `Caja VES`, `Banco VES`, `Divisa (USD)`. |
-| **J** | `Monto Orig` | `NUMBER` | El monto nominal tal cual se recibió o pagó. |
-| **K** | `Moneda` | `ENUM` | `VES` o `USD`. |
-| **L** | `Tasa` | `NUMBER` | Tasa de cambio aplicada en el momento del registro. |
-| **M** | `Total USD` | `NUMBER` | Monto normalizado a USD (Monto / Tasa). Los egresos deben ser negativos. |
-| **N** | `Total VES` | `NUMBER` | Monto normalizado a Bolívares (Monto * Tasa). Los egresos deben ser negativos. |
+Este manual está diseñado para ser seguido por cualquier persona, desde un ingeniero hasta un niño de 10 años. Sigue los pasos EXACTAMENTE como se describen.
 
 ---
 
-## ⚙️ Fase 2: El Motor de Automatización (Apps Script)
+## 👥 Definición de Roles
+- **Antigravity (Tu IA):** Se encarga de escribir el código (`App.tsx`, `Code.gs`), configurar la lógica de APIs y diseñar la interfaz.
+- **Humano (Tú):** Te encargas de crear archivos, copiar/pegar URLs de Google, otorgar permisos y configurar tokens de Telegram.
 
-Este código es el "Cerebro" que vive en Google Sheets. Copia y pega esto en **Extensiones > Apps Script**:
+---
+
+## 🛠️ Fase 1: El Terreno (Cuenta y Carpetas)
+1. Inicia sesión en tu cuenta de **Google**.
+2. Ve a [Google Drive](https://drive.google.com).
+3. Crea una carpeta llamada `SISTEMA_FINANCIERO`.
+4. Dentro, crea una nueva **Hoja de Cálculo** llamada `Base de Datos Elite`.
+
+## 📊 Fase 2: El Cerebro (Estructura de la Tabla)
+Abre tu Hoja de Cálculo y nombra la primera pestaña como **"BD"**. En la fila 1, escribe estos encabezados EXACTAMENTE:
+**ID | Fecha | Año | Q | Mes | Tipo | Cat | Desc | Metodo | Monto | Moneda | Tasa | USD Eq | VES Eq**
+
+## ⚙️ Fase 3: El Motor (Apps Script Backend)
+1. En tu Hoja de Cálculo, ve a **Extensiones > Apps Script**.
+2. Borra todo lo que aparezca y pega este código:
 
 ```javascript
 /**
- * 🏛️ BACKEND MAESTRO v8.0 - ELITE SUITE
+ * BACKEND CORE: ELITE ADMIN SUITE v10.0
+ * Este código maneja la base de datos, API y alertas de Telegram.
  */
 
-// --- 1. CONFIGURACIÓN ---
-var TELEGRAM_TOKEN = "---TU_TOKEN---";
-var TELEGRAM_CHAT_ID = "---TU_CHAT_ID---";
+const SHEET_NAME = "BD"; 
+const TELEGRAM_TOKEN = "TU_BOT_TOKEN_AQUI"; 
+const TELEGRAM_CHAT_ID = "TU_CHAT_ID_AQUI";
 
-// --- 2. ACTIVADORES AUTOMÁTICOS ---
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('🏛️ Administración')
-    .addItem('🔄 Sincronizar ISO', 'SINCRONIZAR_TODO')
-    .addItem('💵 Actualizar BCV', 'actualizarTasaBCV')
-    .addToUi();
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    registrarFila(data);
+    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
-// --- 3. LÓGICA DE REGISTRO INTELIGENTE ---
-function registrarFila(valores) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var h = ss.getSheetByName("Base_Datos_Maestra") || ss.insertSheet("Base_Datos_Maestra");
-  
-  var fechaFinal = valores[2] || valores[0]; // Fecha manual o del sistema
-  var t = valores[3], c = valores[4], d = valores[5], moneda = valores[6];
-  var mont = parseFloat(String(valores[7]).replace(',','.')) || 0;
-  var tasa = parseFloat(String(valores[8]).replace(',','.')) || 36.5;
-
-  var usd = 0, ves = 0;
-  if (String(moneda).includes("USD")) { usd = mont; ves = mont * tasa; }
-  else { usd = mont / tasa; ves = mont; }
-  
-  if (String(t).includes("Egreso")) { usd *= -1; ves *= -1; }
-
-  var fObj = new Date(fechaFinal);
-  var mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
-  var mesTxt = mesNombres[fObj.getMonth()];
-
-  h.appendRow([new Date().getTime(), fechaFinal, fObj.getFullYear(), "Q", mesTxt, t, c, d, valores[9], mont, moneda, tasa, usd, ves]);
-  return { success: true };
-}
-
-// --- 4. API PARA EL FRONTEND (REACT) ---
 function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var h = ss.getSheetByName("Base_Datos_Maestra");
-  var values = h.getDataRange().getValues();
-  var cleanData = values.map(row => row.map(cell => (cell instanceof Date) ? cell.toISOString() : cell));
-  return ContentService.createTextOutput(JSON.stringify({ success: true, data: cleanData })).setMimeType(ContentService.MimeType.JSON);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(SHEET_NAME);
+  const data = sh.getDataRange().getValues();
+  const cleanData = data.map(r => r.map(c => (c instanceof Date) ? c.toISOString() : c));
+  return ContentService.createTextOutput(JSON.stringify({success: true, data: cleanData})).setMimeType(ContentService.MimeType.JSON);
+}
+
+function registrarFila(v) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const h = ss.getSheetByName(SHEET_NAME);
+  const fObj = new Date(v.fecha || new Date());
+  const ano = fObj.getFullYear();
+  const mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
+  const mesTxt = mesNombres[fObj.getMonth()];
+  const q = "Q" + (Math.floor(fObj.getMonth() / 3) + 1);
+  const id = new Date().getTime();
+
+  let usdEq = 0, vesEq = 0;
+  const monto = Number(v.monto);
+  const tasa = Number(v.tasa);
+  const factor = v.tipo.toLowerCase().includes("ingreso") ? 1 : -1;
+
+  if (v.moneda === "USD") {
+    usdEq = monto * factor;
+    vesEq = monto * tasa * factor;
+  } else {
+    vesEq = monto * factor;
+    usdEq = (monto / tasa) * factor;
+  }
+
+  h.appendRow([id, v.fecha, ano, q, mesTxt, v.tipo, v.cat, v.desc, v.met, monto, v.moneda, tasa, usdEq, vesEq]);
+  enviarAlertaTelegram(v, usdEq);
+}
+
+function actualizarTasaBCV() {
+  try {
+    const res = UrlFetchApp.fetch("https://ve.dolarapi.com/v1/dolares/oficial");
+    const json = JSON.parse(res.getContentText());
+    if (json.promedio) {
+      PropertiesService.getScriptProperties().setProperty("TASA_ACTUAL", json.promedio);
+    }
+  } catch (e) {}
+}
+
+function enviarAlertaTelegram(v, usd) {
+  if (TELEGRAM_TOKEN === "TU_BOT_TOKEN_AQUI") return;
+  const emoji = v.tipo.toLowerCase().includes("ingreso") ? "💰" : "💸";
+  const msg = `${emoji} *Nuevo Registro Financiero*\n\n` +
+              `*Concepto:* ${v.desc}\n` +
+              `*Monto:* ${Math.abs(usd).toFixed(2)} USD\n` +
+              `*Fecha:* ${v.fecha}`;
+  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`;
+  UrlFetchApp.fetch(url);
 }
 ```
 
+3. Guarda el proyecto con el nombre "Backend Master".
+
+## 🔗 Fase 4: Conexión API (doGet)
+1. En el editor de Apps Script, dale clic al botón azul **"Implementar" (Deploy) > "Nueva implementación"**.
+2. Selecciona **"Aplicación Web"**.
+3. En "Quién puede acceder", selecciona **"Cualquier persona" (Anyone)**.
+4. Copia la URL que te da (termina en `/exec`). **Esta es tu `API_URL`**.
+
+## ⏰ Fase 5: El Reloj (Activadores de Dólar)
+1. En la barra lateral izquierda de Apps Script, dale clic al icono de reloj (**Activadores**).
+2. "Añadir activador".
+3. Función: `actualizarTasaBCV`.
+4. Evento: **Según tiempo > Temporizador de horas > Cada 4 horas**.
+   *Esto mantiene el precio del dólar siempre al día sin que tú hagas nada.*
+
+## 🤖 Fase 6: Lógica Telegram (Alertas)
+Para recibir alertas en tu móvil:
+1. Habla con `@BotFather` en Telegram para crear un Bot y obtener el **TOKEN**.
+2. Habla con `@userinfobot` para obtener tu **CHAT_ID**.
+3. Pega estos datos en tu `Code.gs`.
+
+## 🎨 Fase 7: El Traje (Configuración del Frontend)
+1. Asegúrate de tener **Node.js** instalado.
+2. Abre la terminal en tu carpeta de proyecto React.
+3. Edita `App.tsx` y reemplaza la `API_URL` por la que obtuviste en la **Fase 4**.
+
+## 📱 Fase 8: Mobile UX (Iconos y Botones)
+- El botón **"NUEVO INGRESO/EGRESO"** está arriba para que sea lo primero que toques en el móvil.
+- El sistema detecta automáticamente si estás en Dark Mode o Light Mode según tu teléfono.
+
+## 🚀 Fase 9: A la Nube (Vercel)
+1. Sube tu código a **GitHub**.
+2. Conecta GitHub con **Vercel**.
+3. Vercel te dará una URL pública instalable en tu iPhone o Android como una WebApp.
+
+## 👨‍🔧 Fase 10: Mantenimiento y Auditoría
+- **Auditoría:** En el dashboard, pestaña "Auditoría", puedes corregir cualquier error.
+- **Sincronización:** Dale clic al botón circular de flechas para traer los datos más nuevos de Google Sheets.
+
 ---
-
-## 🧪 Fase 3: Auditoría de Lógica Frontend (App.tsx)
-
-### 1. El "Smart Running Balance"
-El Dashboard no solo filtra, sino que **calcula el historial**.
-- **Lógica**: Si seleccionas `Feb`, el script recorre todos los registros de `Ene` y `Feb`.
-- **Por qué?**: Porque el dinero en el banco no desaparece al cambiar de mes; se acumula.
-
-### 2. Normalización de Meses (The Fix)
-El frontend utiliza una función `normalizeMonth` que asegura que `01-ene` sea siempre diferente a `january` o `01`, permitiendo que la App lea cualquier base de datos.
-
-### 3. Responsive Elite
-- **Mobile**: Los botones de acción se mueven a la cabecera (Header) para fácil acceso con el pulgar.
-- **Desktop**: Panel lateral expandido para visión periférica de la organización.
-
----
-
-## 🚀 Fase 4: Despliegue (Checkout)
-1. **Git**: `git commit -m "v9.9 Final Gold"`
-2. **Vercel**: Conectar y desplegar.
-3. **Google API**: Publicar Script como "Web App" para "Anyone".
-
----
-**Documento Auditado por Antigravity (2026)**
+**Elite Admin Suite • Versión 10.0 Gold Edition (2026)**
