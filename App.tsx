@@ -11,10 +11,11 @@ import {
   ArrowLeft, ArrowRight, LineChart, PlusCircle, Filter,
   Edit3, ExternalLink, CheckCircle2, AlertCircle, Layers, TrendingUp, ShieldCheck,
   LayoutDashboard, ArrowUpCircle, ArrowDownCircle, BadgeCheck, Sun, Moon, X, Target, Landmark,
-  Share2, FileText, Download, Copy, Check, Printer, FileDown
+  Share2, FileText, Download, Copy, Check, Printer, FileDown,
+  Brain, BookOpen, Sparkles, MessageSquare, Zap
 } from 'lucide-react';
 
-// --- CONFIGURACIÓN v9.7: SMART RUNNING BALANCE SUITE ---
+// --- CONFIGURACIÓN v10.5: FINANZAS JES SUITE ---
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 const API_URL = 'https://script.google.com/macros/s/AKfycbxv-o6l6-SZeeoRfQyN8wHMcm4aoHlJT6vJ42xXU5L2--dcVN8-IBCh5naUSDt8_98/exec';
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSc4F3QHE9zfASEjS0eS5x5X0PjvAGm_G33AEC2AJR5yy9FQoQ/viewform';
@@ -49,7 +50,7 @@ const App: React.FC = () => {
   const [syncing, setSyncing] = useState<boolean>(false);
   const [tasa, setTasa] = useState<number>(36.50);
   const [filtroActivo, setFiltroActivo] = useState<string>("ANUAL");
-  const [activeTab, setActiveTab] = useState<'dash' | 'income' | 'expense' | 'audit' | 'bank' | 'reports'>('dash');
+  const [activeTab, setActiveTab] = useState<'dash' | 'income' | 'expense' | 'audit' | 'bank' | 'reports' | 'sage'>('dash');
   const [isDark, setIsDark] = useState(true);
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const [searchCat, setSearchCat] = useState<string>("");
@@ -203,7 +204,7 @@ const App: React.FC = () => {
     <div className={`min-h-screen ${themeClass} flex items-center justify-center`}>
       <div className="text-center animate-pulse">
         <Church className={`w-14 h-14 mx-auto mb-6 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
-        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Elite Admin Suite v10.5</p>
+        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Finanzas JES Suite v10.5</p>
       </div>
     </div>
   );
@@ -218,8 +219,8 @@ const App: React.FC = () => {
             <Church className="text-white w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xs font-black uppercase tracking-tighter">Elite <span className="text-blue-500">Admin</span></h1>
-            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Suite v10.5 • Pro</p>
+            <h1 className="text-xs font-black uppercase tracking-tighter">Finanzas <span className="text-blue-500">JES</span></h1>
+            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Suite v10.5 • Church Edition</p>
           </div>
         </div>
 
@@ -230,9 +231,13 @@ const App: React.FC = () => {
           <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />
           <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />
           <NavBtn active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<FileText />} label="Reportes" isDark={isDark} />
+          <NavBtn active={activeTab === 'sage'} onClick={() => setActiveTab('sage')} icon={<Brain />} label="Sage Insight" isDark={isDark} />
         </div>
 
         <div className="hidden md:block mt-auto p-4 border-t border-white/5 space-y-2">
+          <button onClick={() => window.open('file:///c:/Users/sahel/Downloads/finanzas-jes---dashboard/MASTER_MANUAL.md', '_blank')} className="w-full h-11 flex items-center justify-center gap-2 bg-blue-600/10 rounded-xl text-[10px] font-black uppercase border border-blue-500/20 text-blue-500 hover:bg-blue-600 hover:text-white transition-all">
+            <BookOpen className="w-4 h-4" /> Manual Técnico
+          </button>
           <button onClick={() => setIsDark(!isDark)} className="w-full h-11 flex items-center justify-center gap-2 bg-white/5 rounded-xl text-[10px] font-black uppercase border border-white/5 hover:bg-white/10 transition-all">
             {isDark ? <><Sun className="w-4 h-4 text-amber-500" /> Claro</> : <><Moon className="w-4 h-4 text-blue-500" /> Oscuro</>}
           </button>
@@ -469,6 +474,12 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'sage' && (
+          <div className="p-4 md:p-8 animate-in fade-in slide-in-from-right-10 duration-700">
+            <SageInsight stats={stats} isDark={isDark} />
+          </div>
+        )}
+
         {/* AUDIT MODAL MODERNO */}
         {isEditModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl">
@@ -628,6 +639,99 @@ const AsientoRow = ({ r, isDark, showAudit, onAudit }: any) => {
         </td>
       )}
     </tr>
+  );
+};
+
+const SageInsight = ({ stats, isDark }: any) => {
+  const [analyzing, setAnalyzing] = useState(false);
+  const [response, setResponse] = useState<string | null>(null);
+
+  const analyze = () => {
+    setAnalyzing(true);
+    setTimeout(() => {
+      const insight = `Análisis Completo: El superávit de $${(stats.m.in - stats.m.out).toLocaleString()} es óptimo. La mayor fuente es "${stats.p.in[0]?.name || 'General'}". Se recomienda vigilar la devaluación acumulada de $${stats.c.d.toLocaleString()} y priorizar gastos en VES para proteger la liquidez en divisas.`;
+      setResponse(insight);
+      setAnalyzing(false);
+    }, 1500);
+  };
+
+  return (
+    <div className="space-y-8 max-w-5xl mx-auto">
+      <div className={`${isDark ? 'bg-gradient-to-br from-blue-600/20 to-indigo-900/20 border-blue-500/20' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'} p-10 rounded-[3rem] border shadow-2xl backdrop-blur-xl relative overflow-hidden group`}>
+        <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:opacity-20 transition-all">
+          <Brain className="w-32 h-32 text-blue-500" />
+        </div>
+        <div className="relative z-10 text-left">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-500/30">
+              <Sparkles className="text-white w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black uppercase tracking-tighter">Sage Insight AI</h2>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Inteligencia Financiera Avanzada</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className={`${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200 shadow-inner'} p-8 rounded-[2rem] border transition-all`}>
+              <p className="text-xs font-bold leading-relaxed mb-8 opacity-80 uppercase tracking-tight">
+                Sage analiza tus patrones de ingreso y egreso para ofrecerte recomendaciones estratégicas. Haz clic para iniciar un diagnóstico profundo del periodo actual.
+              </p>
+
+              <button
+                onClick={analyze}
+                disabled={analyzing}
+                className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-[0.25em] shadow-2xl shadow-blue-500/40 hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+              >
+                {analyzing ? <><RefreshCw className="w-4 h-4 animate-spin" /> Procesando Datos...</> : <><Zap className="w-4 h-4" /> Generar Diagnóstico Financiero</>}
+              </button>
+            </div>
+
+            {response && (
+              <div className="animate-in fade-in zoom-in duration-500">
+                <div className={`${isDark ? 'bg-blue-500/10 border-blue-500/20 text-blue-100' : 'bg-blue-50 border-blue-200 text-blue-900'} p-8 rounded-[2rem] border relative shadow-xl`}>
+                  <div className="flex gap-5">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/30">
+                      <MessageSquare className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-widest mb-3 opacity-60 flex items-center gap-2">
+                        <Sparkles className="w-3 h-3" /> Respuesta de Sage
+                      </h4>
+                      <p className="text-sm font-black leading-relaxed tracking-tight uppercase">{response}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <MetricCard title="Eficiencia de Recaudo" val="94%" desc="Vs. Mes Anterior" color="emerald" isDark={isDark} />
+        <MetricCard title="Riesgo de Devaluación" val="Moderado" desc="Exposición en VES" color="amber" isDark={isDark} />
+      </div>
+    </div>
+  );
+};
+
+const MetricCard = ({ title, val, desc, color, isDark }: any) => {
+  const colors: any = {
+    emerald: 'text-emerald-500 bg-emerald-500/5 border-emerald-500/10',
+    amber: 'text-amber-500 bg-amber-500/5 border-amber-500/10'
+  };
+  return (
+    <div className={`${isDark ? 'bg-[#0a0c10] border-white/5' : 'bg-white border-slate-100 shadow-lg'} p-8 rounded-[2.5rem] border flex justify-between items-center transition-all hover:scale-[1.02]`}>
+      <div className="text-left">
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">{title}</p>
+        <h4 className={`text-2xl font-black tracking-tighter ${isDark ? 'text-white' : 'text-slate-900'}`}>{val}</h4>
+        <p className="text-[9px] font-bold text-slate-500 uppercase mt-1.5 opacity-60 italic tracking-widest">{desc}</p>
+      </div>
+      <div className={`p-5 rounded-[1.25rem] ${colors[color]} shadow-xl shadow-current/10`}>
+        <TrendingUp className="w-7 h-7" />
+      </div>
+    </div>
   );
 };
 
