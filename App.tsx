@@ -13,7 +13,7 @@ import {
   LayoutDashboard, ArrowUpCircle, ArrowDownCircle, BadgeCheck, Sun, Moon, X, Target, Landmark
 } from 'lucide-react';
 
-// --- CONFIGURACIÓN v9.6: ELITE CONSOLIDATED SUITE ---
+// --- CONFIGURACIÓN v9.7: SMART RUNNING BALANCE SUITE ---
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 const API_URL = 'https://script.google.com/macros/s/AKfycbxv-o6l6-SZeeoRfQyN8wHMcm4aoHlJT6vJ42xXU5L2--dcVN8-IBCh5naUSDt8_98/exec';
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSc4F3QHE9zfASEjS0eS5x5X0PjvAGm_G33AEC2AJR5yy9FQoQ/viewform?usp=sharing&ouid=107728327215093587965';
@@ -108,10 +108,20 @@ const App: React.FC = () => {
 
   const stats = useMemo(() => {
     const isAnual = filtroActivo === "ANUAL";
-    const kpiData = isAnual ? data : data.filter(d => d.mes === filtroActivo);
 
+    // Performance Data: Restricted to the selected period
+    const performanceData = isAnual ? data : data.filter(d => d.mes === filtroActivo);
+
+    // Balance Data: Cumulative from start of year up to the end of the selected period
+    const currentMonthIdx = ALL_MONTHS.findIndex(m => m.id === filtroActivo);
+    const balanceData = isAnual ? data : data.filter(d => {
+      const dMonthIdx = ALL_MONTHS.findIndex(m => m.id === d.mes);
+      return dMonthIdx >= 1 && dMonthIdx <= currentMonthIdx;
+    });
+
+    // Calculate Liquidity from balanceData (CUMULATIVE)
     let u = 0, vc = 0, vb = 0, dev = 0;
-    kpiData.forEach(d => {
+    balanceData.forEach(d => {
       const mult = d.tipo.includes('ingreso') ? 1 : -1;
       if (d.mon_orig.includes('USD') || d.mon_orig.includes('$')) u += mult * d.m_orig;
       else {
@@ -122,6 +132,7 @@ const App: React.FC = () => {
       }
     });
 
+    // Calculate Trend Logic (Periodic)
     let trendData: any[] = [];
     if (isAnual) {
       const trm: any = {};
@@ -136,7 +147,7 @@ const App: React.FC = () => {
       trendData = ALL_MONTHS.slice(1).map(m => trm[m.id]);
     } else {
       const days: any = {};
-      kpiData.forEach(d => {
+      performanceData.forEach(d => {
         const day = d.fecha.split('-')[2] || "??";
         if (!days[day]) days[day] = { name: day, in: 0, out: 0, net: 0 };
         const mult = d.tipo.includes('ingreso') ? 1 : -1;
@@ -146,24 +157,25 @@ const App: React.FC = () => {
       trendData = Object.keys(days).sort().map(k => days[k]);
     }
 
-    const tableData = isAnual ? data : kpiData;
-    const viewFiltered = tableData.filter(d => {
-      const matchesTab = (activeTab === 'income' && d.tipo.includes('ingreso')) ||
-        (activeTab === 'expense' && d.tipo.includes('egreso')) ||
-        (activeTab === 'audit');
+    // Performance Summary for selected period
+    const mIn = performanceData.reduce((a, b) => a + (b.tipo.includes('ingreso') ? b.usd : 0), 0);
+    const mOut = performanceData.reduce((a, b) => a + (b.tipo.includes('egreso') ? Math.abs(b.usd) : 0), 0);
+
+    // List Filtering
+    const viewFiltered = performanceData.filter(d => {
       const matchesSearch = !searchCat || d.cat.toLowerCase().includes(searchCat.toLowerCase()) || d.desc.toLowerCase().includes(searchCat.toLowerCase());
-      return matchesTab && matchesSearch;
+      return matchesSearch;
     });
 
     const getP = (tp: string) => {
       const dict: any = {};
-      kpiData.filter(d => d.tipo.includes(tp)).forEach(d => { dict[d.cat] = (dict[d.cat] || 0) + Math.abs(d.usd); });
+      performanceData.filter(d => d.tipo.includes(tp)).forEach(d => { dict[d.cat] = (dict[d.cat] || 0) + Math.abs(d.usd); });
       return Object.keys(dict).map(k => ({ name: k, value: dict[k] })).sort((a, b) => b.value - a.value);
     };
 
     return {
       c: { u, vc, vb, vt: vc + vb, t: u + ((vc + vb) / tasa), d: dev },
-      m: { in: kpiData.reduce((a, b) => a + (b.tipo.includes('ingreso') ? b.usd : 0), 0), out: kpiData.reduce((a, b) => a + (b.tipo.includes('egreso') ? Math.abs(b.usd) : 0), 0), total: viewFiltered.length, list: viewFiltered.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE) },
+      m: { in: mIn, out: mOut, total: viewFiltered.length, list: viewFiltered.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE) },
       p: { in: getP('ingreso'), out: getP('egreso') },
       trend: trendData
     };
@@ -182,7 +194,7 @@ const App: React.FC = () => {
     <div className={`min-h-screen ${themeClass} flex items-center justify-center`}>
       <div className="text-center animate-pulse">
         <Church className={`w-14 h-14 mx-auto mb-6 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
-        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Eclesia v9.6</p>
+        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Eclesia v9.7</p>
       </div>
     </div>
   );
@@ -198,7 +210,7 @@ const App: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xs font-black uppercase tracking-tighter">Eclesia <span className="text-blue-500">Suite</span></h1>
-            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Control Inteligente</p>
+            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Gestión Inteligente</p>
           </div>
         </div>
 
@@ -213,8 +225,8 @@ const App: React.FC = () => {
           <button onClick={() => setIsDark(!isDark)} className="w-full h-11 flex items-center justify-center gap-2 bg-white/5 rounded-xl text-[10px] font-black uppercase border border-white/5 hover:bg-white/10 transition-all">
             {isDark ? <><Sun className="w-4 h-4 text-amber-500" /> Claro</> : <><Moon className="w-4 h-4 text-blue-500" /> Oscuro</>}
           </button>
-          <button onClick={() => window.open(FORM_URL, '_blank')} className="w-full bg-blue-600 text-white h-11 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-blue-500">
-            <PlusCircle className="w-4 h-4" /> Nuevo
+          <button onClick={() => window.open(FORM_URL, '_blank')} className="w-full bg-blue-600 text-white h-11 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-blue-500 shadow-xl shadow-blue-900/40">
+            <PlusCircle className="w-4 h-4" /> Nuevo Asiento
           </button>
         </div>
       </nav>
@@ -226,7 +238,7 @@ const App: React.FC = () => {
         <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#020306]/90' : 'bg-[#f8fafc]/90'} backdrop-blur-xl border-b ${isDark ? 'border-white/5' : 'border-slate-200'} p-4 md:px-8 flex flex-col lg:flex-row justify-between items-center gap-4`}>
           <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 w-full lg:w-auto">
             {ALL_MONTHS.map(m => (
-              <button key={m.id} onClick={() => setFiltroActivo(m.id)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all border ${filtroActivo === m.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : isDark ? 'bg-white/5 border-transparent text-slate-500' : 'bg-white border-slate-200 text-slate-500'}`}>
+              <button key={m.id} onClick={() => setFiltroActivo(m.id)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all border ${filtroActivo === m.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : isDark ? 'bg-white/5 border-transparent text-slate-500' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
                 {m.name}
               </button>
             ))}
@@ -236,7 +248,7 @@ const App: React.FC = () => {
               <span className="text-[8px] font-black text-slate-500 uppercase">Tasa BCV</span>
               <span className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{tasa.toFixed(2)}</span>
             </div>
-            <button onClick={() => fetchData()} className={`p-2.5 rounded-xl border ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'}`}>
+            <button onClick={() => fetchData()} className={`p-2.5 rounded-xl border ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
               <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''} text-slate-500`} />
             </button>
           </div>
@@ -246,32 +258,32 @@ const App: React.FC = () => {
 
           {activeTab === 'dash' && (
             <div className="animate-in fade-in duration-700 space-y-8">
-              {/* KPIs TOTAL CONSOLIDADO v9.6 */}
+              {/* KPIs TOTAL CONSOLIDADO v9.7 (SMART BALANCE) */}
               <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-                <KpiTile label={`Caja Divisa (${filtroActivo === "ANUAL" ? 'Anual' : 'Mes'})`} val={`$${stats.c.u.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Banknote />} c="blue" isDark={isDark} />
-                <KpiTile label="Banco VES" val={`Bs. ${stats.c.vb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Landmark />} c="indigo" isDark={isDark} />
-                <KpiTile label="Caja VES" val={`Bs. ${stats.c.vc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Coins />} c="indigo" isDark={isDark} />
+                <KpiTile label={`Saldo Caja Divisa`} val={`$${stats.c.u.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Banknote />} c="blue" isDark={isDark} />
+                <KpiTile label="Saldo Banco VES" val={`Bs. ${stats.c.vb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Landmark />} c="indigo" isDark={isDark} />
+                <KpiTile label="Saldo Caja VES" val={`Bs. ${stats.c.vc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Coins />} c="indigo" isDark={isDark} />
                 <KpiTile
-                  label="Consolidado Bolívares"
+                  label="Saldo Total VES"
                   val={`Bs. ${stats.c.vt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  sub={`$${(stats.c.vt / tasa).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`}
+                  sub={`Disp: $${(stats.c.vt / tasa).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   icon={<RefreshCw className="w-4 h-4 opacity-70" />}
                   c="amber"
                   isDark={isDark}
                 />
-                <KpiTile label="Flujo Neto ($)" val={`$${stats.c.t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Wallet />} c="emerald" isDark={isDark} />
-                <KpiTile label="Impacto Tasa" val={`-$${stats.c.d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<DevaluationIcon />} c="rose" isDark={isDark} />
+                <KpiTile label="Posición Neta ($)" val={`$${stats.c.t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Wallet />} c="emerald" isDark={isDark} />
+                <KpiTile label="Histórico Deval." val={`-$${stats.c.d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<DevaluationIcon />} c="rose" isDark={isDark} />
               </section>
 
-              {/* DYNAMIC HYBRID CHART */}
-              <div className={`${cardClass} rounded-[2rem] p-6 lg:p-10`}>
+              {/* PERFORMANCE CHART */}
+              <div className={`${cardClass} rounded-[2rem] p-6 lg:p-10 transition-all`}>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
                   <div>
                     <h3 className="text-sm font-black uppercase tracking-tighter">
-                      {filtroActivo === "ANUAL" ? "Rendimiento Anual Institucional" : `Detalle Diario: ${filtroActivo.split('-')[1].toUpperCase()}`}
+                      {filtroActivo === "ANUAL" ? "Movimiento Anual Institucional" : `Tráfico Mensual: ${filtroActivo.split('-')[1].toUpperCase()}`}
                     </h3>
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 italic opacity-60">
-                      {filtroActivo === "ANUAL" ? "Evolución mensual consolidada" : "Flujo de transacciones por día"}
+                      {filtroActivo === "ANUAL" ? "Balance por periodo mensual" : "Flujo diario de ingresos y egresos"}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-4 text-[9px] font-black uppercase border border-white/5 p-3 rounded-xl bg-white/[0.02]">
@@ -303,10 +315,10 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* TORTICAS FIXED LEGIBILITY */}
+              {/* TORTICAS (PERIODIC PERFORMANCE) */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SmartPie title={`Fuentes de Ingreso (${filtroActivo === "ANUAL" ? 'Anual' : filtroActivo.split('-')[1].toUpperCase()})`} data={stats.p.in} isDark={isDark} />
-                <SmartPie title={`Distribución de Gasto (${filtroActivo === "ANUAL" ? 'Anual' : filtroActivo.split('-')[1].toUpperCase()})`} data={stats.p.out} isDark={isDark} />
+                <SmartPie title={`Estructura de Gastos (${filtroActivo === "ANUAL" ? 'Anual' : filtroActivo.split('-')[1].toUpperCase()})`} data={stats.p.out} isDark={isDark} />
               </div>
             </div>
           )}
@@ -314,26 +326,26 @@ const App: React.FC = () => {
           {(activeTab === 'income' || activeTab === 'expense' || activeTab === 'audit') && (
             <div className="animate-in slide-in-from-right-10 duration-500 h-full space-y-4">
 
-              <div className={`${cardClass} rounded-2xl p-4 flex items-center gap-4 border-l-4 ${activeTab === 'income' ? 'border-l-emerald-500' : activeTab === 'expense' ? 'border-l-rose-500' : 'border-l-blue-500'}`}>
+              <div className={`${cardClass} rounded-2xl p-4 flex items-center gap-4 border-l-4 ${activeTab === 'income' ? 'border-l-emerald-500' : activeTab === 'expense' ? 'border-l-rose-500' : 'border-l-blue-500'} transition-all`}>
                 <div className="p-2.5 rounded-xl bg-white/5"><Search className="w-4 h-4 text-slate-500" /></div>
                 <input
                   className={`flex-1 bg-transparent border-none outline-none text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} placeholder:text-slate-600 uppercase tracking-widest`}
-                  placeholder="Buscador inteligente por categoría o detalle..."
+                  placeholder="Buscador inteligente (Concepto o Categoría)..."
                   value={searchCat}
                   onChange={(e) => setSearchCat(e.target.value)}
                 />
                 {searchCat && <button onClick={() => setSearchCat("")}><X className="w-4 h-4 text-slate-500 hover:text-white" /></button>}
               </div>
 
-              <div className={`${cardClass} rounded-[2.5rem] overflow-hidden flex flex-col h-full shadow-2xl`}>
+              <div className={`${cardClass} rounded-[2.5rem] overflow-hidden flex flex-col h-full shadow-2xl transition-all`}>
                 <div className="p-10 border-b border-white/5 flex flex-col lg:flex-row justify-between items-center gap-6 bg-white/[0.01]">
                   <div className="flex items-center gap-5">
                     <div className={`p-5 rounded-[1.25rem] ${activeTab === 'income' ? 'bg-emerald-500/10 text-emerald-500 shadow-xl shadow-emerald-500/10' : activeTab === 'expense' ? 'bg-rose-500/10 text-rose-500 shadow-xl shadow-rose-500/10' : 'bg-blue-500/10 text-blue-500 shadow-xl shadow-blue-500/10'}`}>
                       {activeTab === 'income' ? <ArrowUpCircle className="w-7 h-7" /> : activeTab === 'expense' ? <ArrowDownCircle className="w-7 h-7" /> : <BadgeCheck className="w-7 h-7" />}
                     </div>
                     <div>
-                      <h3 className="text-[17px] font-black uppercase tracking-tighter leading-none">{activeTab === 'income' ? 'Libro de Ingresos' : activeTab === 'expense' ? 'Libro de Egresos' : 'Auditoría Maestra'}</h3>
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mt-2 italic opacity-50">{filtroActivo === "ANUAL" ? "CONSOLIDADO TOTAL" : filtroActivo.split('-')[1].toUpperCase()} • {stats.m.total} ASIENTOS</p>
+                      <h3 className="text-[17px] font-black uppercase tracking-tighter leading-none">{activeTab === 'income' ? 'Registro de Ingresos' : activeTab === 'expense' ? 'Registro de Egresos' : 'Panel de Auditoría'}</h3>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mt-2 italic opacity-50">{filtroActivo === "ANUAL" ? "HISTÓRICO ANUAL" : filtroActivo.split('-')[1].toUpperCase()} • {stats.m.total} MOVIMIENTOS</p>
                     </div>
                   </div>
                   <Pagination cur={paginaActual} total={Math.ceil(stats.m.total / PAGE_SIZE)} onCh={setPaginaActual} isDark={isDark} />
@@ -343,8 +355,8 @@ const App: React.FC = () => {
                     <thead className={`sticky top-0 ${isDark ? 'bg-[#0e1117]' : 'bg-slate-100'} z-10 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
                       <tr>
                         <th className="px-10 py-6 text-slate-500 uppercase font-black tracking-widest text-[10px]">Asiento / Detalles</th>
-                        <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px]">Clasificación</th>
-                        <th className="px-10 py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px]">Monto Origen</th>
+                        <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px]">Categoría</th>
+                        <th className="px-10 py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px]">Origen</th>
                         <th className="px-10 py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px] text-[12px]">Equiv. USD</th>
                         {activeTab === 'audit' && <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px]">Acción</th>}
                       </tr>
@@ -365,26 +377,26 @@ const App: React.FC = () => {
         {isEditModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl">
             <div className={`${isDark ? 'bg-[#0f1218]' : 'bg-white'} border ${isDark ? 'border-white/10' : 'border-slate-200'} rounded-[3rem] w-full max-w-sm overflow-hidden animate-in zoom-in duration-300 shadow-3xl shadow-blue-500/20`}>
-              <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
-                <h3 className="text-xs font-black uppercase flex gap-3 items-center tracking-[0.2em] opacity-80">Corrección Auditoría</h3>
-                <button onClick={() => setIsEditModalOpen(false)} className="bg-white/5 p-2 rounded-full hover:text-white transition-all hover:scale-110">✕</button>
+              <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center text-slate-100">
+                <h3 className="text-xs font-black uppercase flex gap-3 items-center tracking-[0.2em] opacity-80">Edición de Control</h3>
+                <button onClick={() => setIsEditModalOpen(false)} className="bg-white/5 p-2 rounded-full hover:text-white transition-all hover:rotate-90">✕</button>
               </div>
               <div className="p-10 space-y-8">
                 <div className="space-y-3 font-black">
-                  <label className="text-[9px] text-slate-600 uppercase tracking-widest ml-1">Descripción del Movimiento</label>
+                  <label className="text-[9px] text-slate-600 uppercase tracking-widest ml-1">Concepto del Asiento</label>
                   <input className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white shadow-inner' : 'bg-slate-50 border-slate-200 text-slate-900 shadow-sm'} p-5 rounded-2xl text-[13px] outline-none focus:border-blue-500 border-2 transition-all font-black uppercase tracking-tight`} value={editingRow.desc} onChange={(e) => setEditingRow({ ...editingRow, desc: e.target.value })} />
                 </div>
                 <div className="space-y-3 font-black">
                   <label className="text-[9px] text-slate-600 uppercase tracking-widest ml-1">Clasificación Categoría</label>
                   <select className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white shadow-inner' : 'bg-slate-50 border-slate-200 text-slate-900 shadow-sm'} p-5 rounded-2xl text-[13px] outline-none appearance-none border-2 font-black uppercase tracking-tight`} value={editingRow.cat} onChange={(e) => setEditingRow({ ...editingRow, cat: e.target.value })}>
-                    <option value="General">General</option><option value="Diezmos">Diezmos</option><option value="Ofrendas Generales">Ofrendas</option><option value="Construcción">Construcción</option><option value="Mantenimiento">Mantenimiento</option><option value="Personal">Personal</option><option value="Servicios">Servicios</option><option value="Eventos">Eventos</option>
+                    <option value="General">General</option><option value="Diezmos">Diezmos</option><option value="Ofrendas Generales">Ofrendas</option><option value="Construcción">Construcción</option><option value="Mantenimiento">Mantenimiento</option><option value="Personal">Personal</option><option value="Misiones">Misiones</option><option value="Eventos">Eventos</option>
                   </select>
                 </div>
                 <div className="flex gap-4 pt-4">
-                  <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-5 text-[10px] font-black text-slate-500 bg-white/5 rounded-2xl uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5">Descartar</button>
-                  <button onClick={save} className="flex-1 py-5 text-[10px] font-black bg-blue-600 text-white rounded-2xl uppercase shadow-2xl shadow-blue-500/50 hover:bg-blue-500 transition-all hover:-translate-y-1">Aplicar</button>
+                  <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-5 text-[10px] font-black text-slate-500 bg-white/5 rounded-2xl uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5">Cancelar</button>
+                  <button onClick={save} className="flex-1 py-5 text-[10px] font-black bg-blue-600 text-white rounded-2xl uppercase shadow-2xl shadow-blue-500/50 hover:bg-blue-500 transition-all active:scale-95">Sincronizar</button>
                 </div>
-                <p className="text-[9px] text-center text-slate-600 font-extrabold uppercase flex justify-center gap-3 mt-4 opacity-40 italic tracking-widest"><ShieldCheck className="w-4 h-4" /> Registro encriptado hacia la nube</p>
+                <p className="text-[9px] text-center text-slate-600 font-extrabold uppercase flex justify-center gap-3 mt-4 opacity-40 italic tracking-widest"><ShieldCheck className="w-4 h-4" /> Registro Auditado hacia la Nube</p>
               </div>
             </div>
           </div>
@@ -395,11 +407,11 @@ const App: React.FC = () => {
   );
 };
 
-// --- SUB-COMPONENTES ATÓMICOS v9.6 ---
+// --- SUB-COMPONENTES ATÓMICOS v9.7 ---
 const NavBtn = ({ active, onClick, icon, label, isDark }: any) => {
-  const c = active ? isDark ? 'bg-blue-600 text-white shadow-2xl shadow-blue-500/20' : 'bg-blue-600 text-white shadow-2xl shadow-blue-500/40' : (isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50');
+  const c = active ? isDark ? 'bg-blue-600 text-white shadow-2xl shadow-blue-500/20' : 'bg-blue-600 text-white shadow-2xl shadow-blue-500/40' : (isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50 shadow-sm');
   return (
-    <button onClick={onClick} className={`flex flex-col md:flex-row items-center gap-3 p-4 md:px-5 md:py-4 rounded-xl transition-all font-black uppercase text-[10px] md:text-[11px] flex-1 md:flex-none ${c}`}>
+    <button onClick={onClick} className={`flex flex-col md:flex-row items-center gap-2.5 p-3.5 md:px-5 md:py-3.5 rounded-xl transition-all font-black uppercase text-[10px] md:text-[11px] flex-1 md:flex-none ${c}`}>
       <div className="w-5 h-5">{icon}</div>
       <span className="tracking-[0.15em]">{label}</span>
     </button>
@@ -436,14 +448,13 @@ const SmartPie = ({ title, data, isDark }: any) => (
           <Tooltip
             formatter={(v: any) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]}
             contentStyle={{ backgroundColor: isDark ? '#0a0c10' : '#fff', border: 'none', borderRadius: '20px', fontSize: '11px', fontWeight: '900', color: isDark ? '#fff' : '#000', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
-            itemStyle={{ color: isDark ? '#fff' : '#000' }}
           />
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none w-[130px]">
         <p className="text-[12px] font-black uppercase leading-tight truncate px-2" style={{ color: isDark ? '#fff' : '#000' }}>{data[0]?.name || 'N/A'}</p>
         <div className="w-8 h-px bg-blue-500/30 mx-auto my-2" />
-        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Mayor Flujo</p>
+        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Mayor Tráfico</p>
       </div>
     </div>
     <div className="mt-12 grid grid-cols-2 gap-4">
@@ -460,7 +471,7 @@ const SmartPie = ({ title, data, isDark }: any) => (
 const Pagination = ({ cur, total, onCh, isDark }: any) => (
   <div className="flex items-center gap-4">
     <button onClick={() => onCh(Math.max(1, cur - 1))} disabled={cur === 1} className={`p-4 rounded-2xl ${isDark ? 'bg-white/5 hover:bg-white/10 border-white/5' : 'bg-white hover:bg-slate-50 border-slate-200 shadow-sm'} border disabled:opacity-20 transition-all`}><ArrowLeft className="w-4 h-4" /></button>
-    <div className={`px-6 py-3 rounded-2xl text-[12px] font-black border ${isDark ? 'bg-white/5 border-white/5 text-white' : 'bg-white border-slate-200 text-slate-900 shadow-sm'} tracking-widest`}>{cur} / {total || 1}</div>
+    <div className={`px-6 py-3 rounded-2xl text-[12px] font-black border ${isDark ? 'bg-white/5 border-white/5 text-white' : 'bg-white border-slate-200 text-slate-900 shadow-sm'} tracking-widest`}>{cur || 1} de {total || 1}</div>
     <button onClick={() => onCh(Math.min(total, cur + 1))} disabled={cur >= total} className={`p-4 rounded-2xl ${isDark ? 'bg-white/5 hover:bg-white/10 border-white/5' : 'bg-white hover:bg-slate-50 border-slate-200 shadow-sm'} border disabled:opacity-20 transition-all`}><ArrowRight className="w-4 h-4" /></button>
   </div>
 );
