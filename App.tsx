@@ -194,7 +194,7 @@ const App: React.FC = () => {
     <div className={`min-h-screen ${themeClass} flex items-center justify-center`}>
       <div className="text-center animate-pulse">
         <Church className={`w-14 h-14 mx-auto mb-6 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
-        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Eclesia v9.7</p>
+        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Iglesia JES v9.7</p>
       </div>
     </div>
   );
@@ -209,7 +209,7 @@ const App: React.FC = () => {
             <Church className="text-white w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xs font-black uppercase tracking-tighter">Eclesia <span className="text-blue-500">Suite</span></h1>
+            <h1 className="text-xs font-black uppercase tracking-tighter">Iglesia <span className="text-blue-500">JES</span></h1>
             <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Gestión Inteligente</p>
           </div>
         </div>
