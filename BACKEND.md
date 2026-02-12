@@ -14,6 +14,7 @@ function guardarMisCredenciales() {
 
 const SHEET_NAME = "Base_Datos_Maestra"; 
 const FORM_SHEET_NAME = "ENTRADAS";
+const CAMBIOS_SHEET_NAME = "OPERACIONES_CAMBIO";
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🏛️ Elite Suite')
@@ -139,6 +140,7 @@ function registrarFila(v, silent = false) {
   let sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
   
   const tipoStr = String(v.tipo || "").toLowerCase();
+  const catStr = String(v.cat || "").toLowerCase();
   let fObj;
   
   if (v.fecha instanceof Date) {
@@ -154,13 +156,16 @@ function registrarFila(v, silent = false) {
 
   const mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
   const tasa = v.tasa || Number(PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL")) || 40.5;
-  const isIngreso = (tipoStr.includes("ingreso") || tipoStr.includes("abono") || tipoStr.includes("entrada") || tipoStr.includes("inicial") || tipoStr.includes("diezmo") || tipoStr.includes("ofrenda"));
-  const catStr = String(v.cat || "").toLowerCase();
-  const isCatIngreso = (catStr.includes("diezmo") || catStr.includes("ofrenda") || catStr.includes("ingreso"));
-  const factor = (isIngreso || isCatIngreso) ? 1 : -1;
+  const inWords = ["ingreso", "abono", "entrada", "inicial", "diezmo", "ofrenda"];
+  const outWords = ["egreso", "gasto", "pago", "salida", "cargo", "compra", "transferencia", "mantenimiento", "servicios", "honorarios", "nómina", "ayuda"];
   
-  const usdEq = Number((v.moneda === "USD" ? v.monto * factor : (v.monto / tasa) * factor).toFixed(2));
-  const vesEq = Number((v.moneda === "VES" ? v.monto * factor : (v.monto * tasa) * factor).toFixed(2));
+  let factor = 0;
+  if (/ingreso/i.test(tipoStr)) factor = 1;
+  else if (/egreso|permuta/i.test(tipoStr)) factor = -1; // Permuta se trata como base negativa si es salida
+  
+  const absMonto = Math.abs(v.monto);
+  const usdEq = v.forced_usd !== undefined ? v.forced_usd : Number((v.moneda === "USD" ? absMonto * factor : (absMonto / tasa) * factor).toFixed(2));
+  const vesEq = v.forced_ves !== undefined ? v.forced_ves : Number((v.moneda === "VES" ? absMonto * factor : (absMonto * tasa) * factor).toFixed(2));
 
   const idValue = (v.id) ? Number(v.id) : ((v.timestamp instanceof Date) ? v.timestamp.getTime() : (v.timestamp || new Date().getTime()));
 
@@ -212,7 +217,10 @@ function doGet(e) {
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    // Mapeo de campos del Frontend a Backend
+    if (data.action === "cambio") {
+      registrarCambio(data);
+      return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+    }
     const entry = {
       id: data.id,
       timestamp: data.id,
@@ -225,11 +233,38 @@ function doPost(e) {
       moneda: data.mon_orig || data.moneda || "USD",
       tasa: parseNum(data.t_reg || data.tasa || 0)
     };
-    registrarFila(entry, true); // Silent para no duplicar alertas de Telegram
+    registrarFila(entry, true);
     return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function registrarCambio(v) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(CAMBIOS_SHEET_NAME) || ss.insertSheet(CAMBIOS_SHEET_NAME);
+  if (sh.getLastRow() === 0) {
+    const h = ["ID", "Fecha", "Tipo", "Monto Sale", "Moneda Sale", "Monto Entra", "Moneda Entra", "Tasa Mercado", "Desc"];
+    sh.getRange(1, 1, 1, h.length).setValues([h]).setBackground("#0f172a").setFontColor("white");
+  }
+  const row = [v.id, v.fecha, v.tipo_cambio, v.monto_sale, v.moneda_sale, v.monto_entra, v.moneda_entra, v.tasa_mercado, v.desc];
+  sh.appendRow(row);
+
+  // Registro en Master para Balance
+  registrarFila({
+    id: v.id + "_M",
+    timestamp: v.id,
+    fecha: v.fecha,
+    tipo: "Permuta",
+    cat: "Cambio de Divisa",
+    desc: v.desc || `Cambio ${v.monto_sale}${v.moneda_sale} -> ${v.monto_entra}${v.moneda_entra}`,
+    met: "Transferencia",
+    monto: 0,
+    moneda: "USD",
+    tasa: v.tasa_mercado,
+    forced_usd: v.moneda_sale === "USD" ? -v.monto_sale : v.monto_entra,
+    forced_ves: v.moneda_sale === "VES" ? -v.monto_sale : v.monto_entra
+  }, true);
 }
 
 function actualizarTasaBCV() {
@@ -253,9 +288,18 @@ function enviarAlertaTelegram(v, usd) {
 
 function setupSystem() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Configurar Base de Datos Maestra
   let sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
   const headers = ["ID", "Fecha", "Año", "Q", "Mes", "Tipo", "Cat", "Desc", "Metodo", "Monto Orig", "Moneda", "Tasa", "Total USD", "Total VES"];
   sh.getRange(1, 1, 1, headers.length).setValues([headers]).setBackground("#1e293b").setFontColor("white").setFontWeight("bold");
   sh.setFrozenRows(1);
-  SpreadsheetApp.getUi().alert("✅ Sistema Configurado con éxito.");
+
+  // 2. Configurar Registro de Cambios
+  let shC = ss.getSheetByName(CAMBIOS_SHEET_NAME) || ss.insertSheet(CAMBIOS_SHEET_NAME);
+  const hC = ["ID", "Fecha", "Tipo", "Monto Sale", "Moneda Sale", "Monto Entra", "Moneda Entra", "Tasa Mercado", "Desc"];
+  shC.getRange(1, 1, 1, hC.length).setValues([hC]).setBackground("#0f172a").setFontColor("white").setFontWeight("bold");
+  shC.setFrozenRows(1);
+
+  SpreadsheetApp.getUi().alert("✅ Sistema Configurado con éxito. Se han creado las tablas necesarias.");
 }

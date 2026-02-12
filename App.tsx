@@ -5,7 +5,7 @@ import {
   CartesianGrid, AreaChart, Area, PieChart, Pie, Cell, Legend, ComposedChart, Line
 } from 'recharts';
 import {
-  Church, Wallet, RefreshCw, Calendar, Database,
+  Wallet, RefreshCw, Calendar, Database,
   PieChart as PieIcon, CreditCard, Banknote,
   TrendingDown as DevaluationIcon, Search, Info, Coins, Bug, Globe,
   ArrowLeft, ArrowRight, LineChart, PlusCircle, Filter,
@@ -15,7 +15,7 @@ import {
   BookOpen, Zap, DollarSign, PiggyBank
 } from 'lucide-react';
 
-// --- CONFIGURACIÓN v10.5: FINANZAS JES SUITE ---
+// --- ELITE ADMIN SUITE v11.5 - ULTIMATE PRECISION CORE ---
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 const API_URL = 'https://script.google.com/macros/s/AKfycbxv-o6l6-SZeeoRfQyN8wHMcm4aoHlJT6vJ42xXU5L2--dcVN8-IBCh5naUSDt8_98/exec';
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSc4F3QHE9zfASEjS0eS5x5X0PjvAGm_G33AEC2AJR5yy9FQoQ/viewform';
@@ -26,6 +26,21 @@ const BANK_CONFIG = {
   id: "9562664",
   code: "0105",
   note: "Envía capture al número telefónico"
+};
+
+const PARSE_NUM = (v: any) => {
+  if (typeof v === 'number') return v;
+  let s = String(v || "0").replace(/[^\d,.-]/g, "").trim();
+  if (s.includes(",") && s.includes(".")) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+  } else if (s.includes(",")) s = s.replace(",", ".");
+  return parseFloat(s) || 0;
+};
+
+const fmt = (v: any) => {
+  const n = typeof v === 'number' ? v : parseFloat(v) || 0;
+  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 const MONTH_MAP: any = {
@@ -56,6 +71,7 @@ const App: React.FC = () => {
   const [isDark, setIsDark] = useState(true);
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const [searchCat, setSearchCat] = useState<string>("");
+  const [showExchange, setShowExchange] = useState(false);
 
   const [editingRow, setEditingRow] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -138,13 +154,20 @@ const App: React.FC = () => {
           fecha: f("fecha")
         };
 
-        const mapped = json.data.slice(hIdx + 1).filter((r: any[]) => (r[col.id] || r[col.m]) && r[col.mes]).map((r: any[]) => ({
-          id: String(r[col.id] || ""), mes: normalizeMonth(r[col.mes]), tipo: String(r[col.tipo] || "").toLowerCase(),
-          cat: String(r[col.cat] || "General"), desc: String(r[col.desc] || ""), met: String(r[col.met] || "").toLowerCase(),
-          m_orig: pNum(r[col.m]), mon_orig: String(r[col.mon] || "USD").toUpperCase().includes("USD") ? "USD" : "VES",
-          t_reg: pNum(r[col.t]), usd: pNum(r[col.usd]), ves: pNum(r[col.ves]),
-          fecha: String(r[col.fecha] || "").split('T')[0]
-        }));
+        const mapped = json.data.slice(hIdx + 1)
+          .filter((r: any[]) => {
+            const id = String(r[col.id] || "").trim();
+            const monto = pNum(r[col.m]);
+            const mes = String(r[col.mes] || "").trim();
+            return id.length > 0 && monto !== 0 && mes.length > 0; // Solo filas reales con montos y meses
+          })
+          .map((r: any[]) => ({
+            id: String(r[col.id] || ""), mes: normalizeMonth(r[col.mes]), tipo: String(r[col.tipo] || "").toLowerCase(),
+            cat: String(r[col.cat] || "General"), desc: String(r[col.desc] || ""), met: String(r[col.met] || "").toLowerCase(),
+            m_orig: PARSE_NUM(r[col.m]), mon_orig: String(r[col.mon] || "USD").toUpperCase().includes("USD") ? "USD" : "VES",
+            t_reg: PARSE_NUM(r[col.t]), usd: PARSE_NUM(r[col.usd]), ves: PARSE_NUM(r[col.ves]),
+            fecha: String(r[col.fecha] || "").split('T')[0]
+          }));
         setData(mapped);
       }
     } catch (e) { } finally { setLoading(false); setSyncing(false); }
@@ -168,17 +191,12 @@ const App: React.FC = () => {
 
     const getMult = (d: any) => {
       const t = (d.tipo || "").toLowerCase();
-      const c = (d.cat || "").toLowerCase();
-      // Si el tipo o la categoría contienen palabras de ingreso, es 1
-      if (t.includes('ingreso') || t.includes('abono') || t.includes('entrada') || t.includes('inicial') ||
-        t.includes('diezmo') || t.includes('ofrenda') ||
-        c.includes('diezmo') || c.includes('ofrenda') || c.includes('ingreso')) return 1;
-
-      // De lo contrario, por seguridad es egreso (-1)
-      return -1;
+      if (t.includes("ingreso")) return 1;
+      if (t.includes("egreso")) return -1;
+      return 0;
     };
 
-    // Performance Data: Restricted to the selected period (Year, Quarter, or Month)
+    // PERFORMANCE DATA: Restricted to selected period
     let performanceData = [];
     if (filtroActivo === "ANUAL") {
       performanceData = validData;
@@ -201,31 +219,26 @@ const App: React.FC = () => {
       });
     }
 
-    // Calibración de Liquidez v11.3
-    let u = 0, vc = 0, vb = 0, dev = 0;
+    // Calibración de Liquidez v14.3 (Power/Gain Analysis)
+    let u = 0, vc = 0, vb = 0, dev = 0, o = 0;
     balanceData.forEach(d => {
-      const mult = getMult(d);
-
+      o += d.usd; // Valor USD original (pre-firmado)
       const met = (d.met || "").toLowerCase();
       const mon = (d.mon_orig || "VES").toUpperCase();
       const isUSD = mon.includes('USD') || mon.includes('$');
       const isCash = met.includes('efectivo') || met.includes('cash') || met.includes('caja');
 
       if (isUSD) {
-        // Todo lo que sea USD entra en la Caja Divisa (u)
-        u += mult * d.m_orig;
+        u += d.usd;
       } else {
-        // Bolívares: Se separan en Caja (vc) o Banco (vb)
-        if (isCash) vc += mult * d.m_orig; else vb += mult * d.m_orig;
-
-        // Cálculo de Devaluación (Solo para VES)
+        if (isCash) vc += d.ves; else vb += d.ves;
         const tr = d.t_reg > 1 ? d.t_reg : tasa;
-        dev += (mult * (d.m_orig / tr)) - (mult * (d.m_orig / tasa));
+        dev += (d.ves / tr) - (d.ves / tasa);
       }
     });
 
-    const vt = vc + vb; // Total en Bolívares
-    const t = u + (vt / tasa); // Posición Neta Consolidada en USD
+    const vt = vc + vb;
+    const t = u + (vt / tasa);
 
     const isAnual = filtroActivo === "ANUAL";
     let trendData: any[] = [];
@@ -252,18 +265,16 @@ const App: React.FC = () => {
       trendData = Object.keys(days).sort().map(k => days[k]);
     }
 
-    // Performance Summary for selected period
-    const mIn = performanceData.reduce((a, b) => a + (getMult(b) === 1 ? b.usd : 0), 0);
-    const mOut = performanceData.reduce((a, b) => a + (getMult(b) === -1 ? Math.abs(b.usd) : 0), 0);
+    const isExchange = (d: any) => /permuta|cambio|transf/i.test((d.cat || "") + (d.desc || ""));
+    const mIn = performanceData.reduce((a, b) => a + (!isExchange(b) && getMult(b) === 1 ? b.usd : 0), 0);
+    const mOut = performanceData.reduce((a, b) => a + (!isExchange(b) && getMult(b) === -1 ? Math.abs(b.usd) : 0), 0);
 
-    // List Filtering (Tab-based + Search)
     const viewFiltered = performanceData.filter(d => {
       const matchesSearch = !searchCat || d.cat.toLowerCase().includes(searchCat.toLowerCase()) || d.desc.toLowerCase().includes(searchCat.toLowerCase());
       if (!matchesSearch) return false;
-
       if (activeTab === 'income') return d.tipo.includes('ingreso');
       if (activeTab === 'expense') return d.tipo.includes('egreso');
-      return true; // Audit shows everything
+      return true;
     });
 
     const getP = (tp: string) => {
@@ -272,7 +283,6 @@ const App: React.FC = () => {
       return Object.keys(dict).map(k => ({ name: k, value: dict[k] })).sort((a, b) => b.value - a.value);
     };
 
-    // Detailed Breakdown for Reports
     const breakdown = performanceData.reduce((acc: any, d: any) => {
       const mult = getMult(d);
       const isInc = mult > 0;
@@ -291,7 +301,7 @@ const App: React.FC = () => {
     });
 
     return {
-      c: { u, vc, vb, vt, t, d: dev },
+      c: { u, vc, vb, vt, t, d: dev, o },
       m: { in: mIn, out: mOut, total: viewFiltered.length, list: viewFiltered.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE) },
       p: { in: getP('ingreso'), out: getP('egreso') },
       trend: trendData,
@@ -299,7 +309,7 @@ const App: React.FC = () => {
     };
   }, [data, filtroActivo, tasa, paginaActual, activeTab, searchCat]);
 
-  const pNum = (n: any) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pNum = (n: any) => fmt(n);
 
   useEffect(() => { setPaginaActual(1); }, [activeTab, filtroActivo, searchCat]);
 
@@ -327,8 +337,8 @@ const App: React.FC = () => {
   if (loading) return (
     <div className={`min-h-screen ${themeClass} flex items-center justify-center`}>
       <div className="text-center animate-pulse">
-        <Church className={`w-14 h-14 mx-auto mb-6 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
-        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Finanzas JES Suite v10.5</p>
+        <ShieldCheck className={`w-14 h-14 mx-auto mb-6 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
+        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Elite Admin Suite v11.5</p>
       </div>
     </div>
   );
@@ -340,11 +350,11 @@ const App: React.FC = () => {
       <nav className={`fixed bottom-0 md:relative w-full md:w-64 ${navClass} border-t md:border-t-0 md:border-r z-50 md:h-screen flex md:flex-col overflow-hidden`}>
         <div className="hidden md:flex p-6 items-center gap-3 border-b border-white/5 h-24">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/30">
-            <Church className="text-white w-6 h-6" />
+            <ShieldCheck className="text-white w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xs font-black uppercase tracking-tighter">Finanzas <span className="text-blue-500">JES</span></h1>
-            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Suite v10.5 • Church Edition</p>
+            <h1 className="text-xs font-black uppercase tracking-tighter">Elite <span className="text-blue-500">Admin</span> Suite</h1>
+            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">v11.5 • Ultimate Precision Core</p>
           </div>
         </div>
 
@@ -372,18 +382,28 @@ const App: React.FC = () => {
 
         {/* UPPER HEADER */}
         <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#020306]/90' : 'bg-[#f8fafc]/90'} backdrop-blur-xl border-b ${isDark ? 'border-white/5' : 'border-slate-200'} p-4 md:px-8 flex flex-col lg:flex-row justify-between items-center gap-4`}>
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 w-full lg:w-auto">
-            {ALL_MONTHS.map(m => (
-              <button key={m.id} onClick={() => setFiltroActivo(m.id)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all border ${filtroActivo === m.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : isDark ? 'bg-white/5 border-transparent text-slate-500' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                {m.name}
-              </button>
-            ))}
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+            <Calendar className="w-5 h-5 text-blue-500" />
+            <select
+              value={filtroActivo}
+              onChange={(e) => setFiltroActivo(e.target.value)}
+              className={`flex-1 lg:w-48 h-10 px-4 rounded-xl text-[10px] font-black uppercase outline-none border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white focus:border-blue-500' : 'bg-white border-slate-200 text-slate-900 focus:border-blue-500 shadow-sm'}`}
+            >
+              {ALL_MONTHS.map(m => (
+                <option key={m.id} value={m.id} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
             <div className={`hidden sm:flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'} px-5 h-10 rounded-xl border transition-all`}>
               <span className="text-[8px] font-black text-slate-500 uppercase">Tasa BCV</span>
               <span className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{tasa.toFixed(2)}</span>
             </div>
+            <button onClick={() => setShowExchange(true)} className="flex-1 lg:flex-none bg-emerald-600 text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-emerald-500 shadow-lg shadow-emerald-900/20">
+              <RefreshCw className="w-4 h-4" /> Intercambio
+            </button>
             <button onClick={() => window.open(FORM_URL, '_blank')} className="flex-1 lg:flex-none bg-blue-600 text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-blue-500 shadow-lg shadow-blue-900/20">
               <PlusCircle className="w-4 h-4" /> Nuevo Ingreso/Egreso
             </button>
@@ -391,16 +411,11 @@ const App: React.FC = () => {
               <span className="text-[8px] font-black text-slate-500 uppercase">Estado</span>
               <div className="flex items-center gap-2">
                 <div className={`w-1.5 h-1.5 rounded-full ${syncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                <span className={`text-[10px] font-black uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>{syncing ? 'Sincronizando' : 'Conectado'}</span>
+                <span className={`text-[10px] font-black uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>{syncing ? 'Actualizando' : 'Premium'}</span>
               </div>
             </div>
-            <button
-              onClick={() => fetchData()}
-              disabled={syncing}
-              className={`flex items-center gap-2 px-4 h-10 rounded-xl border transition-all active:scale-95 ${isDark ? 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm'}`}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-blue-500' : 'text-slate-500'}`} />
-              <span className="text-[9px] font-black uppercase tracking-widest hidden md:block">Actualizar Datos</span>
+            <button onClick={() => fetchData()} disabled={syncing} className={`flex items-center justify-center p-3 rounded-xl border transition-all ${isDark ? 'bg-white/5 border-white/5 text-slate-500' : 'bg-white border-slate-200 text-slate-400'}`}>
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </header>
@@ -411,18 +426,19 @@ const App: React.FC = () => {
             <div className="animate-in fade-in duration-700 space-y-8">
               {/* KPIs TOTAL CONSOLIDADO v9.7 (SMART BALANCE) */}
               <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-                <KpiTile label="Caja Divisa" val={`$${pNum(stats.c.u)}`} icon={<DollarSign />} c="blue" isDark={isDark} />
-                <KpiTile label="Caja Bolívares" val={`Bs.${pNum(stats.c.vc)}`} icon={<CreditCard />} c="blue" isDark={isDark} />
-                <KpiTile label="Banco / Móvil" val={`Bs.${pNum(stats.c.vb)}`} icon={<Landmark />} c="blue" isDark={isDark} />
+                <KpiTile label="Caja Divisa" val={`$ ${fmt(stats.c.u)}`} icon={<DollarSign />} c="blue" isDark={isDark} />
+                <KpiTile label="Caja Bolívares" val={`Bs. ${fmt(stats.c.vc)}`} sub={`Eq. $ ${fmt(stats.c.vc / tasa)}`} icon={<CreditCard />} c="blue" isDark={isDark} />
+                <KpiTile label="Móvil / Banco" val={`Bs. ${fmt(stats.c.vb)}`} sub={`Eq. $ ${fmt(stats.c.vb / tasa)}`} icon={<Landmark />} c="blue" isDark={isDark} />
                 <KpiTile
                   label="Total Bolívares"
-                  val={`Bs.${pNum(stats.c.vt)}`}
+                  val={`Bs. ${fmt(stats.c.vt)}`}
+                  sub={`Eq. $ ${fmt(stats.c.vt / tasa)}`}
                   icon={<PiggyBank />}
                   c="indigo"
                   isDark={isDark}
                 />
-                <KpiTile label="Posición Neta ($)" val={`$${pNum(stats.c.t)}`} icon={<Wallet />} c="emerald" isDark={isDark} />
-                <KpiTile label="Histórico Deval." val={`-$${pNum(stats.c.d)}`} icon={<DevaluationIcon />} c="rose" isDark={isDark} />
+                <KpiTile label="Poder Real vs. Orig." val={`$ ${fmt(stats.c.t)}`} sub={`vs. $ ${fmt(stats.c.o)}`} icon={<TrendingUp />} c="emerald" isDark={isDark} />
+                <KpiTile label="Diferencial Val." val={`${stats.c.d >= 0 ? '+' : ''}$ ${fmt(stats.c.d)}`} sub={stats.c.d < 0 ? 'Pérdida Deval.' : 'Ganancia Cambiaria'} icon={<DevaluationIcon />} c={stats.c.d < 0 ? "rose" : "emerald"} isDark={isDark} />
               </section>
 
               {/* PERFORMANCE CHART */}
@@ -584,11 +600,11 @@ const App: React.FC = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div className={`p-8 rounded-[2rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'} print:border-black`}>
                         <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 text-emerald-500 print:text-black">Total Ingresos</p>
-                        <h4 className="text-3xl font-black tracking-tighter">${pNum(stats.m.in)}</h4>
+                        <h4 className="text-3xl font-black tracking-tighter">${fmt(stats.m.in)}</h4>
                       </div>
                       <div className={`p-8 rounded-[2rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'} print:border-black`}>
                         <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 text-rose-500 print:text-black">Total Egresos</p>
-                        <h4 className="text-3xl font-black tracking-tighter">${pNum(stats.m.out)}</h4>
+                        <h4 className="text-3xl font-black tracking-tighter">${fmt(stats.m.out)}</h4>
                       </div>
                     </div>
                     <div className={`p-8 rounded-[2.5rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'} no-print`}>
@@ -609,7 +625,7 @@ const App: React.FC = () => {
                     <ShieldCheck className="w-16 h-16 mb-6 opacity-50 print:hidden" />
                     <h3 className="text-lg font-black uppercase tracking-tighter leading-tight mb-2">Certificación de Auditoría</h3>
                     <p className="text-[10px] font-medium uppercase tracking-[0.2em] opacity-80 mb-8 border-t border-white/20 pt-4 print:border-black">Balance General Validado</p>
-                    <div className="text-4xl font-black tracking-tighter mb-2">${pNum(stats.m.in - stats.m.out)}</div>
+                    <div className="text-4xl font-black tracking-tighter mb-2">${fmt(stats.m.in - stats.m.out)}</div>
                     <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Superávit / Déficit del Periodo</p>
                   </div>
                 </div>
@@ -622,15 +638,15 @@ const App: React.FC = () => {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center text-[10px] font-bold">
                         <span className="opacity-50 uppercase">Divisa (USD)</span>
-                        <span className="font-mono">In: ${pNum(stats.breakdown.in.usd)} / Out: ${pNum(stats.breakdown.out.usd)}</span>
+                        <span className="font-mono">In: ${fmt(stats.breakdown.in.usd)} / Out: ${fmt(stats.breakdown.out.usd)}</span>
                       </div>
                       <div className="flex justify-between items-center text-[10px] font-bold">
                         <span className="opacity-50 uppercase">Bolívares (VES)</span>
-                        <span className="font-mono">In: Bs.{pNum(stats.breakdown.in.ves)} / Out: Bs.{pNum(stats.breakdown.out.ves)}</span>
+                        <span className="font-mono">In: Bs.{fmt(stats.breakdown.in.ves)} / Out: Bs.{fmt(stats.breakdown.out.ves)}</span>
                       </div>
                       <div className="flex justify-between items-center text-[11px] font-black pt-4 border-t border-white/5 print:border-black">
                         <span className="uppercase tracking-widest text-blue-500">Equivalencia Total USD</span>
-                        <span className="text-blue-500 font-mono tracking-tighter">${pNum(stats.breakdown.in.usdEq + stats.breakdown.in.vesEq)}</span>
+                        <span className="text-blue-500 font-mono tracking-tighter">${fmt(stats.breakdown.in.usdEq + stats.breakdown.out.usdEq)}</span>
                       </div>
                     </div>
                   </div>
@@ -642,11 +658,11 @@ const App: React.FC = () => {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center text-[10px] font-bold">
                         <span className="opacity-50 uppercase">Efectivo (Operativo)</span>
-                        <span className="font-mono tracking-tighter text-[10px]">In: <span className="text-emerald-500">${pNum(stats.breakdown.in.cash)}</span> / Out: <span className="text-rose-500">${pNum(stats.breakdown.out.cash)}</span></span>
+                        <span className="font-mono tracking-tighter text-[10px]">In: <span className="text-emerald-500">${fmt(stats.breakdown.in.cash)}</span> / Out: <span className="text-rose-500">${fmt(stats.breakdown.out.cash)}</span></span>
                       </div>
                       <div className="flex justify-between items-center text-[10px] font-bold">
                         <span className="opacity-50 uppercase">Banco / Transferencia</span>
-                        <span className="font-mono tracking-tighter text-[10px]">In: <span className="text-emerald-500">${pNum(stats.breakdown.in.bank)}</span> / Out: <span className="text-rose-500">${pNum(stats.breakdown.out.bank)}</span></span>
+                        <span className="font-mono tracking-tighter text-[10px]">In: <span className="text-emerald-500">${fmt(stats.breakdown.in.bank)}</span> / Out: <span className="text-rose-500">${fmt(stats.breakdown.out.bank)}</span></span>
                       </div>
                     </div>
                   </div>
@@ -717,6 +733,16 @@ const App: React.FC = () => {
           }
         </div>
       </main >
+      {showExchange && (
+        <ExchangeModal
+          isOpen={showExchange}
+          onClose={() => setShowExchange(false)}
+          currentTasa={tasa}
+          onExchange={fetchData}
+          stats={stats}
+          isDark={isDark}
+        />
+      )}
     </div >
   );
 };
@@ -760,7 +786,7 @@ const SmartPie = ({ title, data, isDark }: any) => (
             {data.map((_: any, i: any) => (<Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />))}
           </Pie>
           <Tooltip
-            formatter={(v: any) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]}
+            formatter={(v: any) => [`$ ${fmt(v)}`]}
             contentStyle={{ backgroundColor: isDark ? '#0a0c10' : '#fff', border: 'none', borderRadius: '20px', fontSize: '11px', fontWeight: '900', color: isDark ? '#fff' : '#000', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
           />
         </PieChart>
@@ -775,7 +801,7 @@ const SmartPie = ({ title, data, isDark }: any) => (
       {data.slice(0, 4).map((m: any, i: any) => (
         <div key={i} className={`${isDark ? 'bg-white/[0.02] border-white/5' : 'bg-slate-50 border-slate-200'} p-5 rounded-2xl flex flex-col items-start border transition-all hover:bg-blue-600/5`}>
           <span className="text-[9px] font-black text-slate-500 uppercase truncate w-full mb-1">{m.name}</span>
-          <span className={`text-[15px] font-black tracking-tighter ${isDark ? 'text-white' : 'text-slate-900'}`}>${m.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+          <span className={`text-[15px] font-black tracking-tighter ${isDark ? 'text-white' : 'text-slate-900'}`}>$ {fmt(m.value)}</span>
         </div>
       ))}
     </div>
@@ -834,12 +860,12 @@ const AsientoRow = ({ r, isDark, showAudit, onAudit }: any) => {
       </td>
       <td className={`px-10 py-7 text-right font-black ${isDark ? 'text-slate-500' : 'text-slate-400'} font-mono tracking-tighter uppercase text-[12px]`}>
         <div className="flex flex-col items-end">
-          <span>{r.mon_orig} {r.m_orig.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          {r.mon_orig === 'VES' && <span className="text-[10px] opacity-60">Eq. Tasa BCV: ${Math.abs(r.usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+          <span>{r.mon_orig} {fmt(Math.abs(r.m_orig))}</span>
+          {r.mon_orig === 'VES' && <span className="text-[10px] opacity-60">Eq. Tasa BCV: $ {fmt(Math.abs(r.usd))}</span>}
         </div>
       </td>
       <td className={`px-10 py-7 text-right font-black text-[17px] ${isI ? 'text-emerald-500' : 'text-rose-500'} tracking-tighter`}>
-        {isI ? '+' : '-'}${Math.abs(r.usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {isI ? '+' : '-'}$ {fmt(Math.abs(r.usd))}
       </td>
       {showAudit && (
         <td className="px-10 py-7 text-center">
@@ -868,6 +894,89 @@ const MetricCard = ({ title, val, desc, color, isDark }: any) => {
       </div>
       <div className={`p-5 rounded-[1.25rem] ${colors[color]} shadow-xl shadow-current/10`}>
         <TrendingUp className="w-7 h-7" />
+      </div>
+    </div>
+  );
+};
+
+const ExchangeModal = ({ isOpen, onClose, currentTasa, onExchange, stats, isDark }: any) => {
+  const [tipo, setTipo] = useState<'buy' | 'sell'>('sell');
+  const [montoU, setMontoU] = useState('');
+  const [tasaM, setTasaM] = useState(currentTasa.toString());
+  const [loading, setLoading] = useState(false);
+
+  if (!isOpen) return null;
+
+  const muVal = parseFloat(montoU) || 0;
+  const tmVal = parseFloat(tasaM) || 0;
+  const montoB = muVal * tmVal;
+  const isValid = muVal > 0 && tmVal > 0;
+  const balanceOk = tipo === 'sell' ? stats.c.u >= muVal : stats.c.vt >= montoB;
+
+  const handleAction = async () => {
+    setLoading(true);
+    const op = {
+      action: "cambio", id: Date.now(), fecha: new Date().toISOString(),
+      tipo_cambio: tipo === 'sell' ? "Venta USD" : "Compra USD",
+      monto_sale: tipo === 'sell' ? muVal : montoB,
+      moneda_sale: tipo === 'sell' ? "USD" : "VES",
+      monto_entra: tipo === 'sell' ? montoB : muVal,
+      moneda_entra: tipo === 'sell' ? "VES" : "USD",
+      tasa_mercado: tmVal,
+      desc: tipo === 'sell' ? `Venta de ${montoU}$ a tasa ${tasaM}` : `Compra de ${montoU}$ a tasa ${tasaM}`
+    };
+    try {
+      const r = await fetch(API_URL, { method: 'POST', body: JSON.stringify(op) });
+      const j = await r.json();
+      if (j.success) {
+        onExchange();
+        onClose();
+      } else {
+        alert("Error: " + (j.error || "Desconocido"));
+      }
+    } catch (e) { alert("Error al conectar con el servidor"); } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className={`${isDark ? 'bg-[#020306] border-white/5' : 'bg-white border-slate-200'} border w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300`}>
+        <div className="flex justify-between items-center mb-8">
+          <h2 className={`text-sm font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-slate-900'} italic`}>💱 Intercambio de Divisa</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-rose-500 transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className={`grid grid-cols-2 gap-2 mb-8 p-1 ${isDark ? 'bg-white/5' : 'bg-slate-100'} rounded-2xl`}>
+          <button onClick={() => setTipo('sell')} className={`py-4 rounded-xl text-[10px] font-black uppercase transition-all ${tipo === 'sell' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-500 hover:bg-white/5'}`}>Vender USD (Hacer Bs)</button>
+          <button onClick={() => setTipo('buy')} className={`py-4 rounded-xl text-[10px] font-black uppercase transition-all ${tipo === 'buy' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-white/5'}`}>Comprar USD (Guardar $)</button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[8px] font-black text-slate-500 uppercase ml-2 tracking-widest">Monto en Dólares ($)</label>
+            <input type="number" value={montoU} onChange={e => setMontoU(e.target.value)} placeholder="0.00" className={`w-full h-16 ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} border rounded-2xl px-6 text-[18px] font-black focus:border-blue-500 transition-all outline-none`} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[8px] font-black text-slate-500 uppercase ml-2 tracking-widest">Tasa de Mercado (Bs/$)</label>
+            <input type="number" value={tasaM} onChange={e => setTasaM(e.target.value)} placeholder={currentTasa.toString()} className={`w-full h-16 ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} border rounded-2xl px-6 text-[18px] font-black focus:border-blue-500 transition-all outline-none`} />
+          </div>
+
+          <div className={`${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'} p-6 rounded-2xl text-center space-y-1`}>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Recibirás aproximadamente</p>
+            <h3 className={`text-[24px] font-black tracking-tighter ${tipo === 'sell' ? 'text-amber-500' : 'text-emerald-500'}`}>
+              {tipo === 'sell' ? `Bs. ${montoB.toLocaleString('de-DE', { minimumFractionDigits: 2 })}` : `$ ${muVal.toLocaleString('de-DE', { minimumFractionDigits: 2 })}`}
+            </h3>
+            {!balanceOk && isValid && <p className="text-[9px] font-black text-rose-500 uppercase mt-2 animate-pulse">⚠️ Saldo Insuficiente en {tipo === 'sell' ? 'Divisas' : 'Bolívares'}</p>}
+          </div>
+
+          <button
+            disabled={!isValid || !balanceOk || loading}
+            onClick={handleAction}
+            className={`w-full h-16 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${(!isValid || !balanceOk || loading) ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-xl shadow-blue-900/30 active:scale-95'}`}
+          >
+            {loading ? <RefreshCw className="animate-spin mx-auto w-5 h-5" /> : 'Confirmar Intercambio'}
+          </button>
+        </div>
       </div>
     </div>
   );
