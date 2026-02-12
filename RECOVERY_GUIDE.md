@@ -34,4 +34,15 @@ Una vez que tengas ambos datos:
 5. **Listo!** Ya puedes borrar los tokens del código si quieres; Google los recordará para siempre.
 
 ---
+
+## 🛡️ Plan de Retroceso: Seguridad de Datos
+Como estamos en constante evolución, es vital tener un punto de retorno:
+
+1. **Antes de Sincronizar (Reparar):** 
+   - Siempre haz clic derecho en la pestaña `Base_Datos_Maestra` y selecciona **"Duplicar"**.
+   - Esto crea una copia de seguridad instantánea con la fecha actual.
+2. **Si algo sale mal:** 
+   - Puedes borrar la hoja fallida y renombrar la copia como `Base_Datos_Maestra` para restaurar todo al segundo anterior.
+
+---
 **Elite Suite • Guía de Emergencia (2026)**

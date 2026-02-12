@@ -72,7 +72,9 @@ function syncAllResponses() {
   }
 
   const lastRow = shBD.getLastRow();
-  if (lastRow > 1) shBD.deleteRows(2, lastRow - 1);
+  if (lastRow > 1) {
+    shBD.getRange(2, 1, shBD.getMaxRows() - 1, shBD.getMaxColumns()).clearContent();
+  }
 
   let count = 0;
   for (let i = 1; i < formValues.length; i++) {
@@ -121,7 +123,7 @@ function onFormSubmit(e) {
   });
 }
 
-/** Procesa números con formato latino (1.234,56) */
+/** Procesa números con formato latino (1.234,56) o internacional (1,234.56) */
 function parseNum(v) {
   if (typeof v === 'number') return v;
   let s = String(v || "0").replace(/[^\d,.-]/g, "").trim();
@@ -152,7 +154,10 @@ function registrarFila(v, silent = false) {
 
   const mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
   const tasa = v.tasa || Number(PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL")) || 40.5;
-  const factor = (tipoStr.includes("ingreso") || tipoStr.includes("entrada") || tipoStr.includes("abono") || tipoStr.includes("inicial")) ? 1 : -1;
+  const isIngreso = (tipoStr.includes("ingreso") || tipoStr.includes("abono") || tipoStr.includes("entrada") || tipoStr.includes("inicial") || tipoStr.includes("diezmo") || tipoStr.includes("ofrenda"));
+  const catStr = String(v.cat || "").toLowerCase();
+  const isCatIngreso = (catStr.includes("diezmo") || catStr.includes("ofrenda") || catStr.includes("ingreso"));
+  const factor = (isIngreso || isCatIngreso) ? 1 : -1;
   
   const usdEq = Number((v.moneda === "USD" ? v.monto * factor : (v.monto / tasa) * factor).toFixed(2));
   const vesEq = Number((v.moneda === "VES" ? v.monto * factor : (v.monto * tasa) * factor).toFixed(2));
@@ -216,9 +221,9 @@ function doPost(e) {
       cat: data.cat,
       desc: data.desc,
       met: data.met,
-      monto: Number(data.m_orig || data.monto || 0),
+      monto: parseNum(data.m_orig || data.monto || 0),
       moneda: data.mon_orig || data.moneda || "USD",
-      tasa: Number(data.t_reg || data.tasa || 0)
+      tasa: parseNum(data.t_reg || data.tasa || 0)
     };
     registrarFila(entry, true); // Silent para no duplicar alertas de Telegram
     return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);

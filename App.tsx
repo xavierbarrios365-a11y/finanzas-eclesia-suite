@@ -12,7 +12,7 @@ import {
   Edit3, ExternalLink, CheckCircle2, AlertCircle, Layers, TrendingUp, ShieldCheck,
   LayoutDashboard, ArrowUpCircle, ArrowDownCircle, BadgeCheck, Sun, Moon, X, Target, Landmark,
   Share2, FileText, Download, Copy, Check, Printer, FileDown,
-  BookOpen, Zap
+  BookOpen, Zap, DollarSign, PiggyBank
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN v10.5: FINANZAS JES SUITE ---
@@ -140,8 +140,8 @@ const App: React.FC = () => {
 
         const mapped = json.data.slice(hIdx + 1).filter((r: any[]) => (r[col.id] || r[col.m]) && r[col.mes]).map((r: any[]) => ({
           id: String(r[col.id] || ""), mes: normalizeMonth(r[col.mes]), tipo: String(r[col.tipo] || "").toLowerCase(),
-          cat: String(r[col.cat] || "Gral"), desc: String(r[col.desc] || ""), met: String(r[col.met] || "").toLowerCase(),
-          m_orig: pNum(r[col.m]), mon_orig: String(r[col.mon] || "USD").toUpperCase(),
+          cat: String(r[col.cat] || "General"), desc: String(r[col.desc] || ""), met: String(r[col.met] || "").toLowerCase(),
+          m_orig: pNum(r[col.m]), mon_orig: String(r[col.mon] || "USD").toUpperCase().includes("USD") ? "USD" : "VES",
           t_reg: pNum(r[col.t]), usd: pNum(r[col.usd]), ves: pNum(r[col.ves]),
           fecha: String(r[col.fecha] || "").split('T')[0]
         }));
@@ -162,15 +162,20 @@ const App: React.FC = () => {
     // Consistent base data: only records with valid months
     const validData = data.filter(d => {
       const dMonthIdx = ALL_MONTHS.findIndex(m => m.id === d.mes);
-      const isCurrentYear = d.fecha && d.fecha.startsWith(String(currentYear));
+      const isCurrentYear = d.fecha && d.fecha.includes(String(currentYear));
       return dMonthIdx >= 1 && isCurrentYear;
     });
 
-    const getMult = (tipo: string) => {
-      const t = (tipo || "").toLowerCase();
-      if (t.includes('ingreso') || t.includes('abono') || t.includes('entrada') || t.includes('inicial')) return 1;
-      if (t.includes('egreso') || t.includes('cargo') || t.includes('salida') || t.includes('pago')) return -1;
-      return 0;
+    const getMult = (d: any) => {
+      const t = (d.tipo || "").toLowerCase();
+      const c = (d.cat || "").toLowerCase();
+      // Si el tipo o la categoría contienen palabras de ingreso, es 1
+      if (t.includes('ingreso') || t.includes('abono') || t.includes('entrada') || t.includes('inicial') ||
+        t.includes('diezmo') || t.includes('ofrenda') ||
+        c.includes('diezmo') || c.includes('ofrenda') || c.includes('ingreso')) return 1;
+
+      // De lo contrario, por seguridad es egreso (-1)
+      return -1;
     };
 
     // Performance Data: Restricted to the selected period (Year, Quarter, or Month)
@@ -199,8 +204,7 @@ const App: React.FC = () => {
     // Calibración de Liquidez v11.3
     let u = 0, vc = 0, vb = 0, dev = 0;
     balanceData.forEach(d => {
-      const mult = getMult(d.tipo);
-      if (mult === 0) return;
+      const mult = getMult(d);
 
       const met = (d.met || "").toLowerCase();
       const mon = (d.mon_orig || "VES").toUpperCase();
@@ -228,9 +232,9 @@ const App: React.FC = () => {
     if (isAnual) {
       const trm: any = {};
       ALL_MONTHS.slice(1).forEach(m => trm[m.id] = { name: m.name, in: 0, out: 0, net: 0 });
-      data.forEach(d => {
+      validData.forEach(d => {
         if (trm[d.mes]) {
-          const mult = getMult(d.tipo);
+          const mult = getMult(d);
           if (mult > 0) trm[d.mes].in += d.usd; else if (mult < 0) trm[d.mes].out += Math.abs(d.usd);
           trm[d.mes].net = trm[d.mes].in - trm[d.mes].out;
         }
@@ -241,7 +245,7 @@ const App: React.FC = () => {
       performanceData.forEach(d => {
         const day = d.fecha.split('-')[2] || "??";
         if (!days[day]) days[day] = { name: day, in: 0, out: 0, net: 0 };
-        const mult = getMult(d.tipo);
+        const mult = getMult(d);
         if (mult > 0) days[day].in += d.usd; else if (mult < 0) days[day].out += Math.abs(d.usd);
         days[day].net = days[day].in - days[day].out;
       });
@@ -249,8 +253,8 @@ const App: React.FC = () => {
     }
 
     // Performance Summary for selected period
-    const mIn = performanceData.reduce((a, b) => a + (b.tipo.includes('ingreso') ? b.usd : 0), 0);
-    const mOut = performanceData.reduce((a, b) => a + (b.tipo.includes('egreso') ? Math.abs(b.usd) : 0), 0);
+    const mIn = performanceData.reduce((a, b) => a + (getMult(b) === 1 ? b.usd : 0), 0);
+    const mOut = performanceData.reduce((a, b) => a + (getMult(b) === -1 ? Math.abs(b.usd) : 0), 0);
 
     // List Filtering (Tab-based + Search)
     const viewFiltered = performanceData.filter(d => {
@@ -270,8 +274,7 @@ const App: React.FC = () => {
 
     // Detailed Breakdown for Reports
     const breakdown = performanceData.reduce((acc: any, d: any) => {
-      const mult = getMult(d.tipo);
-      if (mult === 0) return acc;
+      const mult = getMult(d);
       const isInc = mult > 0;
       const mon = (d.mon_orig || "USD").toUpperCase();
       const met = (d.met || "").toLowerCase();
@@ -288,7 +291,7 @@ const App: React.FC = () => {
     });
 
     return {
-      c: { u: u.toFixed(2), vc: vc.toFixed(2), vb: vb.toFixed(2), vt: vt.toFixed(2), t: t.toFixed(2), d: dev.toFixed(2) },
+      c: { u, vc, vb, vt, t, d: dev },
       m: { in: mIn, out: mOut, total: viewFiltered.length, list: viewFiltered.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE) },
       p: { in: getP('ingreso'), out: getP('egreso') },
       trend: trendData,
@@ -345,13 +348,13 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex md:flex-col w-full md:p-4 overflow-x-hidden md:overflow-y-auto no-scrollbar gap-0.5 md:gap-1 p-1">
-          <NavBtn active={activeTab === 'dash'} onClick={() => setActiveTab('dash')} icon={<LayoutDashboard />} label="Dash" isDark={isDark} />
-          <NavBtn active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<ArrowUpCircle />} label="Ingr" isDark={isDark} />
-          <NavBtn active={activeTab === 'expense'} onClick={() => setActiveTab('expense')} icon={<ArrowDownCircle />} label="Egr" isDark={isDark} />
-          <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Audit" isDark={isDark} />
-          <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Banco" isDark={isDark} />
-          <NavBtn active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<FileText />} label="Repor" isDark={isDark} />
+        <div className="flex md:flex-col w-full md:p-4 overflow-x-hidden md:overflow-y-auto no-scrollbar gap-2 p-2">
+          <NavBtn active={activeTab === 'dash'} onClick={() => setActiveTab('dash')} icon={<LayoutDashboard />} label="Dashboard" isDark={isDark} />
+          <NavBtn active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<ArrowUpCircle />} label="Ingresos" isDark={isDark} />
+          <NavBtn active={activeTab === 'expense'} onClick={() => setActiveTab('expense')} icon={<ArrowDownCircle />} label="Egresos" isDark={isDark} />
+          <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />
+          <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />
+          <NavBtn active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<FileText />} label="Reportes" isDark={isDark} />
         </div>
 
         <div className="hidden md:block mt-auto p-4 border-t border-white/5 space-y-2">
@@ -408,19 +411,18 @@ const App: React.FC = () => {
             <div className="animate-in fade-in duration-700 space-y-8">
               {/* KPIs TOTAL CONSOLIDADO v9.7 (SMART BALANCE) */}
               <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-                <KpiTile label={`Saldo Caja Divisa`} val={`$${stats.c.u.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Banknote />} c="blue" isDark={isDark} />
-                <KpiTile label="Saldo Banco VES" val={`Bs. ${stats.c.vb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Landmark />} c="indigo" isDark={isDark} />
-                <KpiTile label="Saldo Caja VES" val={`Bs. ${stats.c.vc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Coins />} c="indigo" isDark={isDark} />
+                <KpiTile label="Caja Divisa" val={`$${pNum(stats.c.u)}`} icon={<DollarSign />} c="blue" isDark={isDark} />
+                <KpiTile label="Caja Bolívares" val={`Bs.${pNum(stats.c.vc)}`} icon={<CreditCard />} c="blue" isDark={isDark} />
+                <KpiTile label="Banco / Móvil" val={`Bs.${pNum(stats.c.vb)}`} icon={<Landmark />} c="blue" isDark={isDark} />
                 <KpiTile
-                  label="Saldo Total VES"
-                  val={`Bs. ${stats.c.vt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  sub={`Disp: $${(stats.c.vt / tasa).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  icon={<RefreshCw className="w-4 h-4 opacity-70" />}
-                  c="amber"
+                  label="Total Bolívares"
+                  val={`Bs.${pNum(stats.c.vt)}`}
+                  icon={<PiggyBank />}
+                  c="indigo"
                   isDark={isDark}
                 />
-                <KpiTile label="Posición Neta ($)" val={`$${stats.c.t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<Wallet />} c="emerald" isDark={isDark} />
-                <KpiTile label="Histórico Deval." val={`-$${stats.c.d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<DevaluationIcon />} c="rose" isDark={isDark} />
+                <KpiTile label="Posición Neta ($)" val={`$${pNum(stats.c.t)}`} icon={<Wallet />} c="emerald" isDark={isDark} />
+                <KpiTile label="Histórico Deval." val={`-$${pNum(stats.c.d)}`} icon={<DevaluationIcon />} c="rose" isDark={isDark} />
               </section>
 
               {/* PERFORMANCE CHART */}
@@ -428,7 +430,7 @@ const App: React.FC = () => {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
                   <div>
                     <h3 className="text-sm font-black uppercase tracking-tighter">
-                      {filtroActivo === "ANUAL" ? "Movimiento Anual Institucional" : `Tráfico Mensual: ${filtroActivo.split('-')[1].toUpperCase()}`}
+                      {filtroActivo === "ANUAL" ? "Movimiento Anual Institucional" : `Tráfico: ${ALL_MONTHS.find(m => m.id === filtroActivo)?.name.toUpperCase()}`}
                     </h3>
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 italic opacity-60">
                       {filtroActivo === "ANUAL" ? "Balance por periodo mensual" : "Flujo diario de ingresos y egresos"}
@@ -465,8 +467,8 @@ const App: React.FC = () => {
 
               {/* TORTICAS (PERIODIC PERFORMANCE) */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SmartPie title={`Fuentes de Ingreso (${filtroActivo === "ANUAL" ? 'Anual' : filtroActivo.split('-')[1].toUpperCase()})`} data={stats.p.in} isDark={isDark} />
-                <SmartPie title={`Estructura de Gastos (${filtroActivo === "ANUAL" ? 'Anual' : filtroActivo.split('-')[1].toUpperCase()})`} data={stats.p.out} isDark={isDark} />
+                <SmartPie title={`Fuentes de Ingreso (${ALL_MONTHS.find(m => m.id === filtroActivo)?.name})`} data={stats.p.in} isDark={isDark} />
+                <SmartPie title={`Estructura de Gastos (${ALL_MONTHS.find(m => m.id === filtroActivo)?.name})`} data={stats.p.out} isDark={isDark} />
               </div>
             </div>
           )}
@@ -493,7 +495,7 @@ const App: React.FC = () => {
                     </div>
                     <div>
                       <h3 className="text-[17px] font-black uppercase tracking-tighter leading-none">{activeTab === 'income' ? 'Registro de Ingresos' : activeTab === 'expense' ? 'Registro de Egresos' : 'Panel de Auditoría'}</h3>
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mt-2 italic opacity-50">{filtroActivo === "ANUAL" ? "HISTÓRICO ANUAL" : filtroActivo.split('-')[1].toUpperCase()} • {stats.m.total} MOVIMIENTOS</p>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mt-2 italic opacity-50">{ALL_MONTHS.find(m => m.id === filtroActivo)?.name.toUpperCase()} • {stats.m.total} MOVIMIENTOS</p>
                     </div>
                   </div>
                   <Pagination cur={paginaActual} total={Math.ceil(stats.m.total / PAGE_SIZE)} onCh={setPaginaActual} isDark={isDark} />
@@ -723,9 +725,9 @@ const App: React.FC = () => {
 const NavBtn = ({ active, onClick, icon, label, isDark }: any) => {
   const c = active ? isDark ? 'bg-blue-600 text-white shadow-2xl shadow-blue-500/20' : 'bg-blue-600 text-white shadow-2xl shadow-blue-500/40' : (isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50 shadow-sm');
   return (
-    <button onClick={onClick} className={`flex flex-col md:flex-row items-center gap-1 md:gap-2.5 p-2 md:px-5 md:py-3.5 rounded-xl transition-all font-black uppercase text-[8px] md:text-[11px] flex-1 md:flex-none ${c}`}>
-      <div className="w-4 h-4 md:w-5 md:h-5">{icon}</div>
-      <span className="tracking-tight md:tracking-[0.15em] whitespace-nowrap">{label}</span>
+    <button onClick={onClick} title={label} className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-2.5 p-3.5 md:px-5 md:py-3.5 rounded-xl transition-all font-black uppercase text-[11px] flex-1 md:flex-none ${c}`}>
+      <div className="w-6 h-6 md:w-5 md:h-5">{icon}</div>
+      <span className="hidden md:block tracking-[0.15em] whitespace-nowrap">{label}</span>
     </button>
   );
 };
