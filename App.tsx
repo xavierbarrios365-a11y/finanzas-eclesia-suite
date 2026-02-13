@@ -113,7 +113,7 @@ const App: React.FC = () => {
     if (!quiet) setLoading(true);
     setSyncing(true);
     try {
-      const res = await fetch(`${API_URL}?action=getData`);
+      const res = await fetch(`${API_URL}?action=getData&t=${Date.now()}`); // Cache-busting
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         const pNum = (v: any) => {
@@ -181,6 +181,13 @@ const App: React.FC = () => {
     fetchData();
     const ft = async () => { try { const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial'); const j = await r.json(); if (j.promedio) setTasa(j.promedio); } catch (e) { } };
     ft();
+
+    // MOTOR DE SINCRONIZACIÓN GLOBAL (5s)
+    const interval = setInterval(() => {
+      fetchData(true); // Sincronización silenciosa
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const stats = useMemo(() => {

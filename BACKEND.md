@@ -22,6 +22,8 @@ function onOpen() {
     .addItem('⚙️ Configurar Sistema (Triggers)', 'setupSystem')
     .addItem('🔄 Sincronizar Todo (Reparar)', 'syncAllResponses')
     .addItem('💱 Actualizar Tasa BCV', 'actualizarTasaBCV')
+    .addSeparator()
+    .addItem('🕵️ Probar Telegram (Sonia + Asael)', 'probarTelegram')
     .addToUi();
 }
 
@@ -110,12 +112,9 @@ function onFormSubmit(e) {
     const headers = shForm.getDataRange().getValues()[0];
     const idx = getMapping(headers);
 
-    // Mapeo defensivo usando e.values o e.namedValues si está disponible
+    // Mapeo defensivo usando e.values (más rápido) o e.namedValues (más preciso)
     const res = e.values; 
-    if (!res) {
-       console.error("No se recibieron valores del formulario (e.values es nulo).");
-       return;
-    }
+    if (!res) return;
 
     const entry = {
       timestamp: res[0], 
@@ -128,6 +127,17 @@ function onFormSubmit(e) {
       moneda: idx.mn !== -1 ? (String(res[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES") : "USD", 
       tasa: idx.ts !== -1 ? parseNum(res[idx.ts]) : 0
     };
+
+    // EVITAR DUPLICADOS: Si el timestamp/ID ya existe en la BD, no procesar
+    const shBD = ss.getSheetByName(SHEET_NAME);
+    const idValue = (entry.timestamp instanceof Date) ? entry.timestamp.getTime() : new Date(entry.timestamp).getTime();
+    if (shBD) {
+      const data = shBD.getDataRange().getValues();
+      if (data.some(row => row[0] == idValue)) {
+        console.log("ID ya procesado. Omitiendo.");
+        return;
+      }
+    }
 
     console.log("Registrando entrada:", entry.desc, entry.monto, entry.moneda);
     registrarFila(entry);
@@ -314,16 +324,20 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
     const chatids = (getCredential("TELEGRAM_CHAT_ID") || "").split(",");
     if (!token || token.includes("TU_TOKEN") || chatids.length === 0) return;
     
-    // Calcular Balance Total (En base a la columna Total USD de la BD)
+    // Calcular Balances (Total + Categoría)
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sh = ss.getSheetByName(SHEET_NAME);
     let balanceTotal = 0;
+    let balancesCat = {}; // { "Categoría": monto }
+
     if (sh) {
-      const lastR = sh.getLastRow();
-      if (lastR > 1) {
-        const usdRange = sh.getRange(2, 13, lastR - 1, 1).getValues();
-        balanceTotal = usdRange.reduce((acc, row) => acc + (parseFloat(row[0]) || 0), 0);
-      }
+      const data = sh.getRange(2, 7, sh.getLastRow() - 1, 7).getValues(); // Col 7 (Cat) a Col 13 (Total USD)
+      data.forEach(row => {
+        const cat = String(row[0] || "General").trim();
+        const usdVal = parseFloat(row[6]) || 0;
+        balanceTotal += usdVal;
+        balancesCat[cat] = (balancesCat[cat] || 0) + usdVal;
+      });
     }
 
     let msg = "";
@@ -341,7 +355,16 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
        msg += `📊 *Categoría:* ${v.cat}\n`;
        msg += `💵 *Monto:* ${montoStr}\n`;
        msg += `──────────────\n`;
-       msg += `🏦 *Balance Total:* $${balanceTotal.toFixed(2)}`;
+       msg += `📑 *Balances por Categoría:*\n`;
+       
+       Object.keys(balancesCat).forEach(c => {
+         if (Math.abs(balancesCat[c]) > 0.01) {
+           msg += `• ${c}: $${balancesCat[c].toFixed(2)}\n`;
+         }
+       });
+
+       msg += `──────────────\n`;
+       msg += `🏦 *TOTAL DISPONIBLE:* $${balanceTotal.toFixed(2)}`;
     }
 
     chatids.forEach(id => {
@@ -354,6 +377,28 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
   } catch (e) {
     console.error("Error envío Telegram:", e.toString());
   }
+}
+
+function probarTelegram() {
+  const token = getCredential("TELEGRAM_TOKEN");
+  const chatids = (getCredential("TELEGRAM_CHAT_ID") || "").split(",");
+  if (!token || chatids.length === 0) {
+    SpreadsheetApp.getUi().alert("❌ No hay credenciales configuradas.");
+    return;
+  }
+
+  chatids.forEach(id => {
+    if (id.trim()) {
+      const msg = `🕵️ *Prueba de Conexión Élite*\nID: ${id.trim()}\nEstado: ✅ Activo y Recibiendo.`;
+      try {
+        UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${id.trim()}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`);
+      } catch(e) { 
+        console.error("Error en test para ID:", id); 
+      }
+    }
+  });
+  
+  SpreadsheetApp.getUi().alert("✅ Mensajes de prueba enviados. Verifica Telegram (Sonia y Asael).");
 }
 
 function setupSystem() {
