@@ -23,7 +23,9 @@ function onOpen() {
     .addItem('🔄 Sincronizar Todo (Reparar)', 'syncAllResponses')
     .addItem('💱 Actualizar Tasa BCV', 'actualizarTasaBCV')
     .addSeparator()
-    .addItem('🕵️ Probar Telegram (Sonia + Asael)', 'probarTelegram')
+    .addItem('�️ Reparar Datos (Fix 0 & #NUM!)', 'repararRegistrosErroneos')
+    .addSeparator()
+    .addItem('�🕵️ Probar Telegram (Sonia + Asael)', 'probarTelegram')
     .addToUi();
 }
 
@@ -110,36 +112,40 @@ function onFormSubmit(e) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const named = e.namedValues;
     
-    // Mapeo Blindado (Independiente de la posición de las columnas)
-    const getV = (keys) => {
+    // 🔥 MOTOR DE MAPEO ULTRA-ROBUSTO (v3 - Profesional)
+    const normalize = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
+    
+    const getV = (searchTerms) => {
       if (!named) return "";
-      for (let k of keys) {
-        if (named[k] && named[k][0]) return named[k][0];
+      const normalizedSearch = searchTerms.map(normalize);
+      for (let key in named) {
+        const normalizedKey = normalize(key);
+        if (normalizedSearch.some(term => normalizedKey.includes(term))) {
+          return named[key][0];
+        }
       }
       return "";
     };
 
     const entry = {
       timestamp: e.values ? e.values[0] : new Date(), 
-      fecha: getV(["Fecha de Transacción", "fecha"]), 
-      tipo: getV(["Tipo de Movimiento", "tipo"]), 
-      cat: getV(["Categoría", "cat"]), 
-      desc: getV(["Descripción / Detalle", "desc"]), 
-      met: getV(["Método de Pago", "metodo"]), 
-      monto: parseNum(getV(["Monto", "monto"])), 
-      moneda: getV(["Moneda de la Transacción", "moneda"]).toUpperCase().includes("USD") ? "USD" : "VES", 
-      tasa: parseNum(getV(["Tasa de Cambio (Referencial)", "tasa"]))
+      fecha: getV(["fechatransaccion", "fecha"]), 
+      tipo: getV(["tipomovimiento", "tipo"]), 
+      cat: getV(["categoria", "cat"]), 
+      desc: getV(["descripciondetalle", "desc"]), 
+      met: getV(["metodopago", "metodo"]), 
+      monto: parseNum(getV(["monto"])), 
+      moneda: getV(["moneda", "monedatransaccion"]).toUpperCase().includes("USD") ? "USD" : "VES", 
+      tasa: parseNum(getV(["tasa", "tasacambio"]))
     };
 
-    // GENERADOR DE ID BLINDADO: Evita el error #NUM!
-    // Usamos el tiempo actual en ms como ID único numérico
-    const idValue = Date.now(); 
-    entry.id = idValue;
+    // ID Failsafe: Evita #NUM! permanentemente
+    entry.id = Date.now();
 
-    console.log("Registrando entrada Blindada:", entry.desc, entry.monto, entry.moneda);
+    console.log("Registro 360 PRO v3:", entry.desc, "| Monto:", entry.monto);
     registrarFila(entry);
   } catch (err) {
-    console.error("Error en onFormSubmit:", err.toString());
+    console.error("Error Crítico onFormSubmit:", err.toString());
   }
 }
 
@@ -343,22 +349,35 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
        msg = v.desc;
     } else {
        const icono = String(v.tipo).toLowerCase().includes("ingreso") ? "💰" : "💸";
+       const montoActual = Math.abs(v.monto);
        const montoStr = v.moneda === "VES" 
-          ? `${Math.abs(v.monto).toFixed(2)} VES (*$${Math.abs(usd).toFixed(2)}*)`
-          : `$${Math.abs(v.monto).toFixed(2)}`;
+          ? `${montoActual.toFixed(2)} VES (*$${Math.abs(usd).toFixed(2)}*)`
+          : `$${montoActual.toFixed(2)}`;
        
-       msg = `${icono} *${v.tipo} Registrado*\n`;
+       msg = `${icono} *${v.tipo || "Movimiento"} Registrado*\n`;
        msg += `──────────────\n`;
-       msg += `📝 *Concepto:* ${v.desc}\n`;
-       msg += `📊 *Categoría:* ${v.cat}\n`;
+       msg += `📝 *Concepto:* ${v.desc || "Sin detalle"}\n`;
+       msg += `📊 *Categoría:* ${v.cat || "General"}\n`;
        msg += `💵 *Monto:* ${montoStr}\n`;
        msg += `──────────────\n`;
-       msg += `📑 *Balances por Categoría:*\n`;
+       msg += `📑 *Balances (VES):*\n`;
        
-       Object.keys(balancesCat).forEach(c => {
-         if (Math.abs(balancesCat[c]) > 0.01) {
-           msg += `• ${c}: $${balancesCat[c].toFixed(2)}\n`;
+       // Filtro de Categorías Específicas solicitadas por el usuario
+       const catInteres = ["Ofrendas Generales", "Diezmos", "Pago de Luz", "Ofrendas Especiales", "Aporte"];
+       const normalizeStr = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+       
+       catInteres.forEach(c => {
+         // Buscar el balance en el objeto balancesCat usando normalización
+         let bUSD = 0;
+         const normC = normalizeStr(c);
+         for (let key in balancesCat) {
+           if (normalizeStr(key).includes(normC)) {
+             bUSD = balancesCat[key];
+             break;
+           }
          }
+         const bVES = bUSD * tasa;
+         msg += `• ${c}: ${bVES.toLocaleString('es-VE', {minimumFractionDigits:2})} VES\n`;
        });
 
        msg += `──────────────\n`;
@@ -434,4 +453,73 @@ function setupSystem() {
   }
 
   SpreadsheetApp.getUi().alert("✅ Sistema Configurado. Tablas creadas y Triggers activados automáticamente.");
+}
+
+/**
+ * 🛠️ HERRAMIENTA DE RECUPERACIÓN PROFESIONAL
+ * Corrige registros con #NUM! o Monto = 0 cruzando datos con la hoja de respuestas original.
+ */
+function repararRegistrosErroneos() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const shBD = ss.getSheetByName(SHEET_NAME);
+  const shForm = ss.getSheetByName(FORM_SHEET_NAME) || ss.getSheets()[0];
+  
+  if (!shBD || !shForm) return;
+  
+  const bdData = shBD.getDataRange().getValues();
+  const formData = shForm.getDataRange().getValues();
+  const formHeaders = formData[0];
+  
+  // Mapeo robusto para el buscador
+  const normalize = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "").trim();
+  const findH = (terms) => {
+    const normTerms = terms.map(normalize);
+    return formHeaders.findIndex(h => normTerms.some(t => normalize(h).includes(t)));
+  };
+
+  const idx = {
+    f: findH(["fechatransaccion", "fecha"]),
+    tp: findH(["tipomovimiento", "tipo"]),
+    c: findH(["categoria", "cat"]),
+    d: findH(["descripciondetalle", "desc"]),
+    m: findH(["metodopago", "metodo"]),
+    mt: findH(["monto"]),
+    mn: findH(["moneda", "monedatransaccion"]),
+    ts: findH(["tasa", "tasacambio"])
+  };
+
+  let fixedCount = 0;
+
+  for (let i = 1; i < bdData.length; i++) {
+    const row = bdData[i];
+    const isError = row[0] === "#NUM!" || row[9] === 0 || row[7] === "" || String(row[0]).includes("Infinity");
+    
+    if (isError) {
+      // Intentar buscar en el formulario por fecha/timestamp (col 2 en BD es Fecha dd/mm/yyyy)
+      const bdFecha = row[1];
+      const match = formData.find(fRow => {
+        // Comparación simple por fecha o cercanía si es posible
+        return fRow[idx.f] == bdFecha || (fRow[0] instanceof Date && Utilities.formatDate(fRow[0], "GMT-4", "dd/MM/yyyy") == bdFecha);
+      });
+
+      if (match) {
+        const entry = {
+          id: row[0] === "#NUM!" || String(row[0]).includes("Infinity") ? Date.now() + i : row[0],
+          timestamp: match[0],
+          fecha: match[idx.f],
+          tipo: match[idx.tp],
+          cat: match[idx.c],
+          desc: match[idx.d],
+          met: match[idx.m],
+          monto: parseNum(match[idx.mt]),
+          moneda: String(match[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES",
+          tasa: parseNum(match[idx.ts])
+        };
+        registrarFila(entry, true); // Silent mode
+        fixedCount++;
+      }
+    }
+  }
+  
+  SpreadsheetApp.getUi().alert("✅ Recuperación completada: " + fixedCount + " filas reparadas automáticamente.");
 }

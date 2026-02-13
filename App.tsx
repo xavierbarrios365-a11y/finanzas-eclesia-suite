@@ -110,6 +110,7 @@ const App: React.FC = () => {
   };
 
   const fetchData = async (quiet = false) => {
+    if (syncing) return; // Protección contra solapamiento
     if (!quiet) setLoading(true);
     setSyncing(true);
     try {
@@ -182,10 +183,10 @@ const App: React.FC = () => {
     const ft = async () => { try { const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial'); const j = await r.json(); if (j.promedio) setTasa(j.promedio); } catch (e) { } };
     ft();
 
-    // MOTOR DE SINCRONIZACIÓN GLOBAL (5s)
+    // MOTOR DE SINCRONIZACIÓN GLOBAL (15s) - Más estable y equilibrado
     const interval = setInterval(() => {
-      fetchData(true); // Sincronización silenciosa persistente
-    }, 5000);
+      fetchData(true);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, []);
