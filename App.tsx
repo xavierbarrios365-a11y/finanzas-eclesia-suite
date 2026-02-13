@@ -550,18 +550,21 @@ const App: React.FC = () => {
                   {searchCat && <button onClick={() => setSearchCat("")}><X className="w-4 h-4 text-slate-500 hover:text-white" /></button>}
                 </div>
 
-                <div className={`${cardClass} md:w-64 rounded-2xl p-4 flex items-center gap-4 border-l-4 border-l-blue-500 transition-all`}>
+                <div className={`${cardClass} md:w-72 rounded-2xl p-4 flex items-center gap-4 border-l-4 border-l-blue-500 transition-all relative group`}>
                   <div className="p-2.5 rounded-xl bg-white/5"><Filter className="w-4 h-4 text-slate-500" /></div>
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className={`flex-1 bg-transparent border-none outline-none text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} uppercase tracking-widest appearance-none`}
-                  >
-                    <option value="TODAS" className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>TODAS LAS CATEGORÍAS</option>
-                    {stats.categories.map((c: string) => (
-                      <option key={c} value={c} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>{c.toUpperCase()}</option>
-                    ))}
-                  </select>
+                  <div className="flex-1 relative">
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      className={`w-full bg-transparent border-none outline-none text-[10px] md:text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} uppercase tracking-widest appearance-none cursor-pointer pr-8`}
+                    >
+                      <option value="TODAS" className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>TODAS LAS CATEGORÍAS</option>
+                      {stats.categories.map((c: string) => (
+                        <option key={c} value={c} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>{c.toUpperCase()}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className={`absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none transition-transform group-hover:translate-y-[-40%]`} />
+                  </div>
                 </div>
               </div>
 
