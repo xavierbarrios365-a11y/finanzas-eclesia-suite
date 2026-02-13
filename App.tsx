@@ -12,7 +12,7 @@ import {
   Edit3, ExternalLink, CheckCircle2, AlertCircle, Layers, TrendingUp, ShieldCheck,
   LayoutDashboard, ArrowUpCircle, ArrowDownCircle, BadgeCheck, Sun, Moon, X, Target, Landmark,
   Share2, FileText, Download, Copy, Check, Printer, FileDown,
-  BookOpen, Zap, DollarSign, PiggyBank
+  BookOpen, Zap, DollarSign, PiggyBank, ChevronUp, ChevronDown
 } from 'lucide-react';
 
 // --- ELITE ADMIN SUITE v11.5 - ULTIMATE PRECISION CORE ---
@@ -168,7 +168,11 @@ const App: React.FC = () => {
             t_reg: PARSE_NUM(r[col.t]), usd: PARSE_NUM(r[col.usd]), ves: PARSE_NUM(r[col.ves]),
             fecha: String(r[col.fecha] || "").split('T')[0]
           }));
-        setData(mapped);
+        setData(mapped.sort((a: any, b: any) => {
+          const idA = parseFloat(String(a.id).replace(/[^\d.]/g, '')) || 0;
+          const idB = parseFloat(String(b.id).replace(/[^\d.]/g, '')) || 0;
+          return idB - idA;
+        }));
       }
     } catch (e) { } finally { setLoading(false); setSyncing(false); }
   };
@@ -313,6 +317,26 @@ const App: React.FC = () => {
 
   useEffect(() => { setPaginaActual(1); }, [activeTab, filtroActivo, searchCat]);
 
+  const handleSyncRate = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: "updateRate" })
+      });
+      const json = await res.json();
+      if (json.success && json.tasa) {
+        setTasa(json.tasa);
+        fetchData(true);
+      }
+    } catch (e) {
+      alert("Error al sincronizar tasa");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleEdit = (r: any) => { setEditingRow({ ...r }); setIsEditModalOpen(true); };
   const save = async () => {
     setSyncing(true);
@@ -397,9 +421,17 @@ const App: React.FC = () => {
             </select>
           </div>
           <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
-            <div className={`hidden sm:flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'} px-5 h-10 rounded-xl border transition-all`}>
+            <div className={`flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'} px-5 h-10 rounded-xl border transition-all shadow-sm`}>
               <span className="text-[8px] font-black text-slate-500 uppercase">Tasa BCV</span>
               <span className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{tasa.toFixed(2)}</span>
+              <button
+                onClick={handleSyncRate}
+                disabled={syncing}
+                title="Sincronizar Tasa"
+                className={`ml-2 p-1.5 rounded-lg transition-all ${isDark ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'} ${syncing ? 'animate-spin' : ''}`}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
             </div>
             <button onClick={() => setShowExchange(true)} className="flex-1 lg:flex-none bg-emerald-600 text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-emerald-500 shadow-lg shadow-emerald-900/20">
               <RefreshCw className="w-4 h-4" /> Intercambio
@@ -437,6 +469,7 @@ const App: React.FC = () => {
                   c="indigo"
                   isDark={isDark}
                 />
+                <KpiTile label="Tasa Oficial BCV" val={`${tasa.toFixed(2)} VES`} sub="Tasa de Referencia" icon={<Database />} c="amber" isDark={isDark} />
                 <KpiTile label="Poder Real vs. Orig." val={`$ ${fmt(stats.c.t)}`} sub={`vs. $ ${fmt(stats.c.o)}`} icon={<TrendingUp />} c="emerald" isDark={isDark} />
                 <KpiTile label="Diferencial Val." val={`${stats.c.d >= 0 ? '+' : ''}$ ${fmt(stats.c.d)}`} sub={stats.c.d < 0 ? 'Pérdida Deval.' : 'Ganancia Cambiaria'} icon={<DevaluationIcon />} c={stats.c.d < 0 ? "rose" : "emerald"} isDark={isDark} />
               </section>
@@ -516,15 +549,15 @@ const App: React.FC = () => {
                   </div>
                   <Pagination cur={paginaActual} total={Math.ceil(stats.m.total / PAGE_SIZE)} onCh={setPaginaActual} isDark={isDark} />
                 </div>
-                <div className="overflow-auto max-h-[65vh] md:max-h-full scrollbar-thin">
-                  <table className="w-full text-left text-[11px] border-collapse min-w-[800px]">
-                    <thead className={`sticky top-0 ${isDark ? 'bg-[#0e1117]' : 'bg-slate-100'} z-10 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                <div className="overflow-x-auto overflow-y-auto max-h-[65vh] md:max-h-full scrollbar-thin">
+                  <table className="w-full text-left text-[11px] border-collapse min-w-full md:min-w-[800px]">
+                    <thead className={`sticky top-0 ${isDark ? 'bg-[#0e1117]' : 'bg-slate-100'} z-10 border-b ${isDark ? 'border-white/5' : 'border-slate-200'} hidden md:table-header-group`}>
                       <tr>
-                        <th className="px-10 py-6 text-slate-500 uppercase font-black tracking-widest text-[10px]">Asiento / Detalles</th>
-                        <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px]">Categoría</th>
-                        <th className="px-10 py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px]">Origen</th>
-                        <th className="px-10 py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px] text-[12px]">Equiv. USD</th>
-                        {activeTab === 'audit' && <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px]">Acción</th>}
+                        <th className="px-6 md:px-10 py-4 md:py-6 text-slate-500 uppercase font-black tracking-widest text-[10px]">Asiento / Detalles</th>
+                        <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Categoría</th>
+                        <th className="px-10 py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Origen</th>
+                        <th className="px-6 md:px-10 py-4 md:py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px]">Equiv. USD</th>
+                        {activeTab === 'audit' && <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Acción</th>}
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${isDark ? 'divide-white/[0.04]' : 'divide-slate-200'}`}>
@@ -844,37 +877,79 @@ const BankCard = ({ bank, owner, id, acc, type, isDark }: any) => {
 };
 
 const AsientoRow = ({ r, isDark, showAudit, onAudit }: any) => {
+  const [open, setOpen] = useState(false);
   const isI = r.tipo.includes('ingreso');
+
   return (
-    <tr className={`group transition-all ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-blue-50'} duration-300`}>
-      <td className="px-10 py-7">
-        <div className="flex flex-col gap-2">
-          <span className={`text-[14px] font-black uppercase tracking-tight ${isDark ? 'text-white' : 'text-slate-900'} transition-all group-hover:translate-x-1`}>{r.desc || 'MOVIMIENTO SIN DETALLE'}</span>
-          <div className="flex items-center gap-3 text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] opacity-40">
-            <span>{r.fecha}</span><div className="w-2 h-px bg-slate-700" /><span>{r.met}</span>
+    <>
+      <tr
+        onClick={() => { if (window.innerWidth < 768) setOpen(!open); }}
+        className={`group transition-all ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-blue-50'} duration-300 cursor-pointer md:cursor-default`}
+      >
+        <td className="px-4 md:px-10 py-4 md:py-7">
+          <div className="flex flex-col gap-1 md:gap-2">
+            <span className={`text-[12px] md:text-[14px] font-black uppercase tracking-tight ${isDark ? 'text-white' : 'text-slate-900'} transition-all group-hover:translate-x-1`}>
+              {r.desc || 'MOVIMIENTO SIN DETALLE'}
+            </span>
+            <div className="flex items-center gap-2 md:gap-3 text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] opacity-40">
+              <span className="whitespace-nowrap">{r.fecha}</span>
+              <div className="w-1.5 md:w-2 h-px bg-slate-700" />
+              <span className="truncate max-w-[100px] md:max-w-none">{r.met}</span>
+              <span className="md:hidden ml-auto">
+                {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </span>
+            </div>
           </div>
-        </div>
-      </td>
-      <td className="px-10 py-7 text-center">
-        <span className={`px-5 py-2 rounded-xl text-[10px] font-extrabold border ${isDark ? 'bg-white/5 border-white/10 text-slate-400' : 'bg-white border-slate-200 text-slate-600'} uppercase tracking-widest shadow-sm`}>{r.cat}</span>
-      </td>
-      <td className={`px-10 py-7 text-right font-black ${isDark ? 'text-slate-500' : 'text-slate-400'} font-mono tracking-tighter uppercase text-[12px]`}>
-        <div className="flex flex-col items-end">
-          <span>{r.mon_orig} {fmt(Math.abs(r.m_orig))}</span>
-          {r.mon_orig === 'VES' && <span className="text-[10px] opacity-60">Eq. Tasa BCV: $ {fmt(Math.abs(r.usd))}</span>}
-        </div>
-      </td>
-      <td className={`px-10 py-7 text-right font-black text-[17px] ${isI ? 'text-emerald-500' : 'text-rose-500'} tracking-tighter`}>
-        {isI ? '+' : '-'}$ {fmt(Math.abs(r.usd))}
-      </td>
-      {showAudit && (
-        <td className="px-10 py-7 text-center">
-          <button onClick={onAudit} className="p-3.5 bg-blue-600/10 text-blue-500 hover:bg-blue-600 hover:text-white rounded-[1.25rem] transition-all border border-blue-500/40 shadow-xl shadow-blue-500/10 active:scale-90">
-            <Edit3 className="w-4 h-4" />
-          </button>
         </td>
+        <td className="px-10 py-7 text-center hidden md:table-cell">
+          <span className={`px-5 py-2 rounded-xl text-[10px] font-extrabold border ${isDark ? 'bg-white/5 border-white/10 text-slate-400' : 'bg-white border-slate-200 text-slate-600'} uppercase tracking-widest shadow-sm`}>{r.cat}</span>
+        </td>
+        <td className={`px-10 py-7 text-right font-black ${isDark ? 'text-slate-500' : 'text-slate-400'} font-mono tracking-tighter uppercase text-[12px] hidden md:table-cell`}>
+          <div className="flex flex-col items-end">
+            <span>{r.mon_orig} {fmt(Math.abs(r.m_orig))}</span>
+            {r.mon_orig === 'VES' && <span className="text-[10px] opacity-60">Eq. Tasa BCV: $ {fmt(Math.abs(r.usd))}</span>}
+          </div>
+        </td>
+        <td className={`px-4 md:px-10 py-4 md:py-7 text-right font-black text-[14px] md:text-[17px] ${isI ? 'text-emerald-500' : 'text-rose-500'} tracking-tighter`}>
+          {isI ? '+' : '-'}$ {fmt(Math.abs(r.usd))}
+        </td>
+        {showAudit && (
+          <td className="px-10 py-7 text-center hidden md:table-cell">
+            <button onClick={(e) => { e.stopPropagation(); onAudit(); }} className="p-3.5 bg-blue-600/10 text-blue-500 hover:bg-blue-600 hover:text-white rounded-[1.25rem] transition-all border border-blue-500/40 shadow-xl shadow-blue-500/10 active:scale-90">
+              <Edit3 className="w-4 h-4" />
+            </button>
+          </td>
+        )}
+      </tr>
+
+      {/* MOBILE EXPANDABLE DETAILS */}
+      {open && (
+        <tr className="md:hidden animate-in slide-in-from-top-2 duration-200">
+          <td colSpan={showAudit ? 3 : 2} className={`px-4 py-4 ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'} border-t border-white/5`}>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest opacity-60">Categoría</p>
+                <p className={`text-[10px] font-black uppercase ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{r.cat}</p>
+              </div>
+              <div className="space-y-1 text-right">
+                <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest opacity-60">Original</p>
+                <p className={`text-[10px] font-black ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{r.mon_orig} {fmt(Math.abs(r.m_orig))}</p>
+              </div>
+              {showAudit && (
+                <div className="col-span-2 pt-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAudit(); }}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
+                  >
+                    <Edit3 className="w-3 h-3" /> Editar Registro
+                  </button>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
       )}
-    </tr>
+    </>
   );
 };
 

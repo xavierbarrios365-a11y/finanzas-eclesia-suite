@@ -1,15 +1,15 @@
 /**
- * ELITE ADMIN SUITE v11.5 - ULTIMATE PRECISION CORE
- * Mapeo dinámico total (Sincronización + Formulario) y soporte de decimales latinos.
+ * ELITE ADMIN SUITE v11.6 - ULTIMATE PRECISION & AUTO-TRIGGER
+ * Mapeo dinámico total, soporte de decimales latinos y auto-configuración de triggers.
  */
 
 // 🔒 CREDENCIALES (Inmunes a borrados)
 function guardarMisCredenciales() {
   const props = PropertiesService.getScriptProperties();
   props.setProperty("TELEGRAM_TOKEN", "8047121954:AAHhWY3s_YB9C33Ut2JpinhqGmv_cMPsYg8"); 
-  props.setProperty("TELEGRAM_CHAT_ID", "1009537014"); 
+  props.setProperty("TELEGRAM_CHAT_ID", "1009537014,7581655183"); // Soporte multi-ID
   props.setProperty("TASA_ACTUAL", "40.5");
-  SpreadsheetApp.getUi().alert("✅ Credenciales guardadas con éxito.");
+  SpreadsheetApp.getUi().alert("✅ Credenciales guardadas con éxito (Multi-ID Activo).");
 }
 
 const SHEET_NAME = "Base_Datos_Maestra"; 
@@ -19,7 +19,7 @@ const CAMBIOS_SHEET_NAME = "OPERACIONES_CAMBIO";
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🏛️ Elite Suite')
     .addItem('🔐 Guardar Mis Credenciales', 'guardarMisCredenciales')
-    .addItem('⚙️ Configurar Sistema', 'setupSystem')
+    .addItem('⚙️ Configurar Sistema (Triggers)', 'setupSystem')
     .addItem('🔄 Sincronizar Todo (Reparar)', 'syncAllResponses')
     .addItem('💱 Actualizar Tasa BCV', 'actualizarTasaBCV')
     .addToUi();
@@ -81,7 +81,7 @@ function syncAllResponses() {
   for (let i = 1; i < formValues.length; i++) {
     const row = formValues[i];
     const data = {
-      timestamp: row[idx.t],
+      timestamp: row[0],
       fecha: row[idx.f],
       tipo: row[idx.tp],
       cat: idx.c !== -1 ? row[idx.c] : "General",
@@ -102,26 +102,38 @@ function syncAllResponses() {
  */
 function onFormSubmit(e) {
   if (!e) return;
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const shForm = ss.getSheetByName(FORM_SHEET_NAME) || ss.getSheets()[0];
-  const headers = shForm.getDataRange().getValues()[0];
-  const idx = getMapping(headers);
+  console.log("Formulario enviado. Procesando...");
+  
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const shForm = ss.getSheetByName(FORM_SHEET_NAME) || ss.getSheets()[0];
+    const headers = shForm.getDataRange().getValues()[0];
+    const idx = getMapping(headers);
 
-  // e.values viene en orden de la hoja
-  const res = e.values; 
-  if (!res) return;
+    // Mapeo defensivo usando e.values o e.namedValues si está disponible
+    const res = e.values; 
+    if (!res) {
+       console.error("No se recibieron valores del formulario (e.values es nulo).");
+       return;
+    }
 
-  registrarFila({
-    timestamp: res[0], 
-    fecha: res[idx.f], 
-    tipo: res[idx.tp], 
-    cat: idx.c !== -1 ? res[idx.c] : "Gral.", 
-    desc: idx.d !== -1 ? res[idx.d] : "", 
-    met: idx.m !== -1 ? res[idx.m] : "Efectivo", 
-    monto: parseNum(res[idx.mt]), 
-    moneda: idx.mn !== -1 ? (String(res[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES") : "USD", 
-    tasa: idx.ts !== -1 ? parseNum(res[idx.ts]) : 0
-  });
+    const entry = {
+      timestamp: res[0], 
+      fecha: idx.f !== -1 ? res[idx.f] : new Date(), 
+      tipo: idx.tp !== -1 ? res[idx.tp] : "Ingreso", 
+      cat: idx.c !== -1 ? res[idx.c] : "Gral.", 
+      desc: idx.d !== -1 ? res[idx.d] : "Vía Formulario", 
+      met: idx.m !== -1 ? res[idx.m] : "Efectivo", 
+      monto: idx.mt !== -1 ? parseNum(res[idx.mt]) : 0, 
+      moneda: idx.mn !== -1 ? (String(res[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES") : "USD", 
+      tasa: idx.ts !== -1 ? parseNum(res[idx.ts]) : 0
+    };
+
+    console.log("Registrando entrada:", entry.desc, entry.monto, entry.moneda);
+    registrarFila(entry);
+  } catch (err) {
+    console.error("Error en onFormSubmit:", err.toString());
+  }
 }
 
 /** Procesa números con formato latino (1.234,56) o internacional (1,234.56) */
@@ -136,82 +148,87 @@ function parseNum(v) {
 }
 
 function registrarFila(v, silent = false) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
-  
-  const tipoStr = String(v.tipo || "").toLowerCase();
-  const catStr = String(v.cat || "").toLowerCase();
-  let fObj;
-  
-  if (v.fecha instanceof Date) {
-    fObj = v.fecha;
-    fObj.setHours(12, 0, 0, 0);
-  } else if (typeof v.fecha === 'string' && v.fecha.includes('/')) {
-    let parts = v.fecha.split('/');
-    fObj = parts.length === 3 ? new Date(parts[2], parts[1] - 1, parts[0], 12, 0, 0) : new Date(v.fecha);
-  } else {
-    fObj = new Date(v.fecha || new Date());
-    fObj.setHours(12, 0, 0, 0);
-  }
-
-  const mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
-  const tasa = v.tasa || Number(PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL")) || 40.5;
-  const inWords = ["ingreso", "abono", "entrada", "inicial", "diezmo", "ofrenda"];
-  const outWords = ["egreso", "gasto", "pago", "salida", "cargo", "compra", "transferencia", "mantenimiento", "servicios", "honorarios", "nómina", "ayuda"];
-  
-  let factor = 0;
-  if (/ingreso/i.test(tipoStr)) factor = 1;
-  else if (/egreso|permuta/i.test(tipoStr)) factor = -1; // Permuta se trata como base negativa si es salida
-  
-  const absMonto = Math.abs(v.monto);
-  const usdEq = v.forced_usd !== undefined ? v.forced_usd : Number((v.moneda === "USD" ? absMonto * factor : (absMonto / tasa) * factor).toFixed(2));
-  const vesEq = v.forced_ves !== undefined ? v.forced_ves : Number((v.moneda === "VES" ? absMonto * factor : (absMonto * tasa) * factor).toFixed(2));
-
-  const idValue = (v.id) ? Number(v.id) : ((v.timestamp instanceof Date) ? v.timestamp.getTime() : (v.timestamp || new Date().getTime()));
-
-  // LÓGICA DE ACTUALIZACIÓN: Buscar si el ID ya existe
-  const data = sh.getDataRange().getValues();
-  let rowIdx = -1;
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] == idValue) {
-      rowIdx = i + 1;
-      break;
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+    
+    const tipoStr = String(v.tipo || "").toLowerCase();
+    let fObj;
+    
+    if (v.fecha instanceof Date) {
+      fObj = v.fecha;
+      fObj.setHours(12, 0, 0, 0);
+    } else if (typeof v.fecha === 'string' && v.fecha.includes('/')) {
+      let parts = v.fecha.split('/');
+      fObj = parts.length === 3 ? new Date(parts[2], parts[1] - 1, parts[0], 12, 0, 0) : new Date(v.fecha);
+    } else {
+      fObj = new Date(v.fecha || new Date());
+      fObj.setHours(12, 0, 0, 0);
     }
-  }
 
-  const rowData = [
-    idValue, 
-    Utilities.formatDate(fObj, "GMT-4", "dd/MM/yyyy"), 
-    fObj.getFullYear(), 
-    "Q" + (Math.floor(fObj.getMonth() / 3) + 1), 
-    mesNombres[fObj.getMonth()], 
-    v.tipo, 
-    v.cat, 
-    v.desc, 
-    v.met, 
-    v.monto, 
-    v.moneda, 
-    tasa, 
-    usdEq, 
-    vesEq
-  ];
+    const mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
+    const tasa = v.tasa || Number(PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL")) || 40.5;
+    
+    let factor = 0;
+    if (/ingreso|abono|entrada|inicial|diezmo|ofrenda/i.test(tipoStr)) factor = 1;
+    else factor = -1; // Por defecto es egreso si no es ingreso
+    
+    const absMonto = Math.abs(v.monto);
+    const usdEq = v.forced_usd !== undefined ? v.forced_usd : Number((v.moneda === "USD" ? absMonto * factor : (absMonto / tasa) * factor).toFixed(2));
+    const vesEq = v.forced_ves !== undefined ? v.forced_ves : Number((v.moneda === "VES" ? absMonto * factor : (absMonto * tasa) * factor).toFixed(2));
 
-  if (rowIdx !== -1) {
-    sh.getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
-  } else {
-    sh.appendRow(rowData);
+    const idValue = (v.id) ? Number(v.id) : ((v.timestamp instanceof Date) ? v.timestamp.getTime() : (v.timestamp ? new Date(v.timestamp).getTime() : new Date().getTime()));
+
+    // LÓGICA DE ACTUALIZACIÓN: Buscar si el ID ya existe
+    const data = sh.getDataRange().getValues();
+    let rowIdx = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] == idValue) {
+        rowIdx = i + 1;
+        break;
+      }
+    }
+
+    const rowData = [
+      idValue, 
+      Utilities.formatDate(fObj, "GMT-4", "dd/MM/yyyy"), 
+      fObj.getFullYear(), 
+      "Q" + (Math.floor(fObj.getMonth() / 3) + 1), 
+      mesNombres[fObj.getMonth()], 
+      v.tipo, 
+      v.cat, 
+      v.desc, 
+      v.met, 
+      v.monto, 
+      v.moneda, 
+      tasa, 
+      usdEq, 
+      vesEq
+    ];
+
+    if (rowIdx !== -1) {
+      sh.getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
+    } else {
+      sh.appendRow(rowData);
+    }
+    
+    if (!silent) enviarAlertaTelegram(v, usdEq, vesEq); // Pasar VES Eq para reportes duales
+  } catch (e) {
+    console.error("Error en registrarFila:", e.toString());
   }
-  
-  if (!silent) enviarAlertaTelegram(v, usdEq);
 }
 
 function getCredential(key) { return PropertiesService.getScriptProperties().getProperty(key); }
 
 function doGet(e) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-  if (!sh) return ContentService.createTextOutput("Sheet not found");
-  const data = sh.getDataRange().getValues();
-  return ContentService.createTextOutput(JSON.stringify({success: true, data: data.map(r => r.map(c => (c instanceof Date) ? c.toISOString() : c))})).setMimeType(ContentService.MimeType.JSON);
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    if (!sh) return ContentService.createTextOutput("Sheet not found");
+    const data = sh.getDataRange().getValues();
+    return ContentService.createTextOutput(JSON.stringify({success: true, data: data.map(r => r.map(c => (c instanceof Date) ? c.toISOString() : c))})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function doPost(e) {
@@ -220,6 +237,10 @@ function doPost(e) {
     if (data.action === "cambio") {
       registrarCambio(data);
       return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+    }
+    if (data.action === "updateRate") {
+      const nuevaTasa = actualizarTasaBCV(true); // Ejecución silenciosa desde web
+      return ContentService.createTextOutput(JSON.stringify({success: true, tasa: nuevaTasa})).setMimeType(ContentService.MimeType.JSON);
     }
     const entry = {
       id: data.id,
@@ -233,7 +254,7 @@ function doPost(e) {
       moneda: data.mon_orig || data.moneda || "USD",
       tasa: parseNum(data.t_reg || data.tasa || 0)
     };
-    registrarFila(entry, true);
+    registrarFila(entry, false); // Alertar en Telegram (No silencioso) por defecto en Dashboard
     return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
@@ -250,7 +271,6 @@ function registrarCambio(v) {
   const row = [v.id, v.fecha, v.tipo_cambio, v.monto_sale, v.moneda_sale, v.monto_entra, v.moneda_entra, v.tasa_mercado, v.desc];
   sh.appendRow(row);
 
-  // Registro en Master para Balance
   registrarFila({
     id: v.id + "_M",
     timestamp: v.id,
@@ -264,26 +284,76 @@ function registrarCambio(v) {
     tasa: v.tasa_mercado,
     forced_usd: v.moneda_sale === "USD" ? -v.monto_sale : v.monto_entra,
     forced_ves: v.moneda_sale === "VES" ? -v.monto_sale : v.monto_entra
-  }, true);
+  }, false); // Notificar permuta
 }
 
-function actualizarTasaBCV() {
+function actualizarTasaBCV(silentMode = false) {
   try {
     const res = UrlFetchApp.fetch("https://ve.dolarapi.com/v1/dolares/oficial");
     const json = JSON.parse(res.getContentText());
     if (json.promedio) {
-      PropertiesService.getScriptProperties().setProperty("TASA_ACTUAL", json.promedio);
-      SpreadsheetApp.getUi().alert("✅ Tasa actualizada a: " + json.promedio);
+      const tasaVieja = PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL");
+      const nuevaTasa = json.promedio;
+      PropertiesService.getScriptProperties().setProperty("TASA_ACTUAL", nuevaTasa);
+      
+      // Notificar cambio de tasa
+      enviarAlertaTelegram({tipo: "Cambio Tasa", desc: `🔄 *Tasa BCV Actualizada*\nDe: ${tasaVieja} ➔ A: ${nuevaTasa} VES`}, 0);
+      
+      if (!silentMode) SpreadsheetApp.getUi().alert("✅ Tasa actualizada a: " + nuevaTasa);
+      return nuevaTasa;
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("Error actualización tasa:", e.toString());
+  }
+  return null;
 }
 
-function enviarAlertaTelegram(v, usd) {
-  const token = getCredential("TELEGRAM_TOKEN");
-  const chatid = getCredential("TELEGRAM_CHAT_ID");
-  if (!token || token.includes("TU_TOKEN")) return;
-  const msg = `${String(v.tipo).toLowerCase().includes("ingreso") ? "💰" : "💸"} *Nuevo Registro*\n*${v.desc}*\nMonto: ${Math.abs(usd).toFixed(2)} USD`;
-  UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatid}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`);
+function enviarAlertaTelegram(v, usd, ves = 0) {
+  try {
+    const token = getCredential("TELEGRAM_TOKEN");
+    const chatids = (getCredential("TELEGRAM_CHAT_ID") || "").split(",");
+    if (!token || token.includes("TU_TOKEN") || chatids.length === 0) return;
+    
+    // Calcular Balance Total (En base a la columna Total USD de la BD)
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sh = ss.getSheetByName(SHEET_NAME);
+    let balanceTotal = 0;
+    if (sh) {
+      const lastR = sh.getLastRow();
+      if (lastR > 1) {
+        const usdRange = sh.getRange(2, 13, lastR - 1, 1).getValues();
+        balanceTotal = usdRange.reduce((acc, row) => acc + (parseFloat(row[0]) || 0), 0);
+      }
+    }
+
+    let msg = "";
+    if (v.tipo === "Cambio Tasa") {
+       msg = v.desc;
+    } else {
+       const icono = String(v.tipo).toLowerCase().includes("ingreso") ? "💰" : "💸";
+       const montoStr = v.moneda === "VES" 
+          ? `${Math.abs(v.monto).toFixed(2)} VES (*$${Math.abs(usd).toFixed(2)}*)`
+          : `$${Math.abs(v.monto).toFixed(2)}`;
+       
+       msg = `${icono} *${v.tipo} Registrado*\n`;
+       msg += `──────────────\n`;
+       msg += `📝 *Concepto:* ${v.desc}\n`;
+       msg += `📊 *Categoría:* ${v.cat}\n`;
+       msg += `💵 *Monto:* ${montoStr}\n`;
+       msg += `──────────────\n`;
+       msg += `🏦 *Balance Total:* $${balanceTotal.toFixed(2)}`;
+    }
+
+    chatids.forEach(id => {
+      if (id.trim()) {
+        try {
+          UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${id.trim()}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`);
+        } catch(e) { console.error("Error enviando a ID:", id); }
+      }
+    });
+  } catch (e) {
+    console.error("Error envío Telegram:", e.toString());
+  }
 }
 
 function setupSystem() {
@@ -301,5 +371,24 @@ function setupSystem() {
   shC.getRange(1, 1, 1, hC.length).setValues([hC]).setBackground("#0f172a").setFontColor("white").setFontWeight("bold");
   shC.setFrozenRows(1);
 
-  SpreadsheetApp.getUi().alert("✅ Sistema Configurado con éxito. Se han creado las tablas necesarias.");
+  // 3. AUTO-CONFIGURACIÓN DE TRIGGERS
+  const triggers = ScriptApp.getProjectTriggers();
+  let formTriggerExists = false;
+  
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'onFormSubmit') {
+      formTriggerExists = true;
+      break;
+    }
+  }
+  
+  if (!formTriggerExists) {
+    ScriptApp.newTrigger('onFormSubmit')
+      .forSpreadsheet(ss)
+      .onFormSubmit()
+      .create();
+    console.log("Trigger onFormSubmit creado con éxito.");
+  }
+
+  SpreadsheetApp.getUi().alert("✅ Sistema Configurado. Tablas creadas y Triggers activados automáticamente.");
 }
