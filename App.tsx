@@ -16,9 +16,17 @@ import {
 } from 'lucide-react';
 
 // --- ELITE ADMIN SUITE v11.5 - ULTIMATE PRECISION CORE ---
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 const API_URL = 'https://script.google.com/macros/s/AKfycbxv-o6l6-SZeeoRfQyN8wHMcm4aoHlJT6vJ42xXU5L2--dcVN8-IBCh5naUSDt8_98/exec';
 const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSc4F3QHE9zfASEjS0eS5x5X0PjvAGm_G33AEC2AJR5yy9FQoQ/viewform';
+const LOGO_URL = 'https://storage.googleapis.com/gpt-engineer-file-uploads/JgA2Pk99Ycb89gHZAYwVI5IDcpK2/uploads/1760879140672-Logo Turen.png';
+
+const BRAND = {
+  primary: '#2E6061', // Deep Teal JES
+  accent: '#F59E0B',  // Amber JES
+  warm: '#F8F7F2'     // Bone Warm
+};
+
+const COLORS = [BRAND.primary, '#10b981', BRAND.accent, '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
 const BANK_CONFIG = {
   bank: "Mercantil",
@@ -51,8 +59,6 @@ const MONTH_MAP: any = {
 
 const ALL_MONTHS = [
   { id: "ANUAL", name: "Anual" },
-  { id: "Q1", name: "T1 (Ene-Mar)" }, { id: "Q2", name: "T2 (Abr-Jun)" },
-  { id: "Q3", name: "T3 (Jul-Sep)" }, { id: "Q4", name: "T4 (Oct-Dic)" },
   { id: "01-ene", name: "Ene" }, { id: "02-feb", name: "Feb" },
   { id: "03-mar", name: "Mar" }, { id: "04-abr", name: "Abr" },
   { id: "05-may", name: "May" }, { id: "06-jun", name: "Jun" },
@@ -213,16 +219,13 @@ const App: React.FC = () => {
     let performanceData = [];
     if (filtroActivo === "ANUAL") {
       performanceData = validData;
-    } else if (filtroActivo.startsWith("Q")) {
-      const qMap: any = { "Q1": ["01-ene", "02-feb", "03-mar"], "Q2": ["04-abr", "05-may", "06-jun"], "Q3": ["07-jul", "08-ago", "09-sep"], "Q4": ["10-oct", "11-nov", "12-dic"] };
-      performanceData = validData.filter(d => qMap[filtroActivo].includes(d.mes));
     } else {
       performanceData = validData.filter(d => d.mes === filtroActivo);
     }
 
     // Balance Data: Cumulative from start of year up to selected point
     let balanceData = [];
-    if (filtroActivo === "ANUAL" || filtroActivo.startsWith("Q")) {
+    if (filtroActivo === "ANUAL") {
       balanceData = validData;
     } else {
       const dMonthIdx = ALL_MONTHS.findIndex(m => m.id === filtroActivo);
@@ -374,8 +377,8 @@ const App: React.FC = () => {
   if (loading) return (
     <div className={`min-h-screen ${themeClass} flex items-center justify-center`}>
       <div className="text-center animate-pulse">
-        <ShieldCheck className={`w-14 h-14 mx-auto mb-6 ${isDark ? 'text-blue-500' : 'text-blue-600'}`} />
-        <p className="font-black uppercase tracking-[0.2em] text-[10px] opacity-50">Elite Admin Suite v11.5</p>
+        <img src={LOGO_URL} className="w-20 h-20 mx-auto mb-6 object-contain" alt="Iglesia JES" />
+        <p className="font-black uppercase tracking-[0.3em] text-[10px] opacity-50" style={{ color: BRAND.primary }}>Finanzas JES Suite</p>
       </div>
     </div>
   );
@@ -386,12 +389,10 @@ const App: React.FC = () => {
       {/* PROFESSIONAL NAVIGATION */}
       <nav className={`fixed bottom-0 md:relative w-full md:w-64 ${navClass} border-t md:border-t-0 md:border-r z-50 md:h-screen flex md:flex-col overflow-hidden`}>
         <div className="hidden md:flex p-6 items-center gap-3 border-b border-white/5 h-24">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/30">
-            <ShieldCheck className="text-white w-6 h-6" />
-          </div>
+          <img src={LOGO_URL} className="w-10 h-10 object-contain" alt="JES" />
           <div>
-            <h1 className="text-xs font-black uppercase tracking-tighter">Elite <span className="text-blue-500">Admin</span> Suite</h1>
-            <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">v11.5 • Ultimate Precision Core</p>
+            <h1 className="text-xs font-black uppercase tracking-tighter">Finanzas <span style={{ color: BRAND.accent }}>JES</span> Suite</h1>
+            <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Identidad Oficial Iglesia JES</p>
           </div>
         </div>
 
@@ -414,13 +415,13 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* WORKSPACE */}
-      <main className="flex-1 h-screen overflow-y-auto pb-24 md:pb-0">
+      {/* WORKSPACE - ZERO SCROLL ENFORCED */}
+      <main className={`flex-1 ${activeTab === 'dash' ? 'h-screen overflow-hidden' : 'h-screen overflow-y-auto'} pb-24 md:pb-0`}>
 
         {/* UPPER HEADER */}
-        <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#020306]/90' : 'bg-[#f8fafc]/90'} backdrop-blur-xl border-b ${isDark ? 'border-white/5' : 'border-slate-200'} p-4 md:px-8 flex flex-col lg:flex-row justify-between items-center gap-4`}>
+        <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#020306]/90' : 'bg-[#f8fafc]/90'} backdrop-blur-xl border-b ${isDark ? 'border-white/5' : 'border-slate-200'} p-4 md:px-8 flex flex-col lg:flex-row justify-between items-center gap-4 h-auto lg:h-20`}>
           <div className="flex items-center gap-3 w-full lg:w-auto">
-            <Calendar className="w-5 h-5 text-blue-500" />
+            <Calendar className="w-5 h-5 shadow-lg" style={{ color: BRAND.primary }} />
             <select
               value={filtroActivo}
               onChange={(e) => setFiltroActivo(e.target.value)}
@@ -446,10 +447,10 @@ const App: React.FC = () => {
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
-            <button onClick={() => setShowExchange(true)} className="flex-1 lg:flex-none bg-emerald-600 text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-emerald-500 shadow-lg shadow-emerald-900/20">
+            <button onClick={() => setShowExchange(true)} className="flex-1 lg:flex-none text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:scale-105 shadow-lg" style={{ backgroundColor: BRAND.accent }}>
               <RefreshCw className="w-4 h-4" /> Intercambio
             </button>
-            <button onClick={() => window.open(FORM_URL, '_blank')} className="flex-1 lg:flex-none bg-blue-600 text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:bg-blue-500 shadow-lg shadow-blue-900/20">
+            <button onClick={() => window.open(FORM_URL, '_blank')} className="flex-1 lg:flex-none text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:scale-105 shadow-lg" style={{ backgroundColor: BRAND.primary }}>
               <PlusCircle className="w-4 h-4" /> Nuevo Ingreso/Egreso
             </button>
             <div className={`hidden sm:flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'} px-5 py-2 rounded-xl border`}>
@@ -468,69 +469,57 @@ const App: React.FC = () => {
         <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
 
           {activeTab === 'dash' && (
-            <div className="animate-in fade-in duration-700 space-y-8">
-              {/* KPIs TOTAL CONSOLIDADO v9.7 (SMART BALANCE) */}
-              <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-                <KpiTile label="Caja Divisa" val={`$ ${fmt(stats.c.u)}`} icon={<DollarSign />} c="blue" isDark={isDark} />
-                <KpiTile label="Caja Bolívares" val={`Bs. ${fmt(stats.c.vc)}`} sub={`Eq. $ ${fmt(stats.c.vc / tasa)}`} icon={<CreditCard />} c="blue" isDark={isDark} />
-                <KpiTile label="Móvil / Banco" val={`Bs. ${fmt(stats.c.vb)}`} sub={`Eq. $ ${fmt(stats.c.vb / tasa)}`} icon={<Landmark />} c="blue" isDark={isDark} />
-                <KpiTile
-                  label="Total Bolívares"
-                  val={`Bs. ${fmt(stats.c.vt)}`}
-                  sub={`Eq. $ ${fmt(stats.c.vt / tasa)}`}
-                  icon={<PiggyBank />}
-                  c="indigo"
-                  isDark={isDark}
-                />
-                <KpiTile label="Tasa Oficial BCV" val={`${tasa.toFixed(2)} VES`} sub="Tasa de Referencia" icon={<Database />} c="amber" isDark={isDark} />
-                <KpiTile label="Poder Real vs. Orig." val={`$ ${fmt(stats.c.t)}`} sub={`vs. $ ${fmt(stats.c.o)}`} icon={<TrendingUp />} c="emerald" isDark={isDark} />
-                <KpiTile label="Diferencial Val." val={`${stats.c.d >= 0 ? '+' : ''}$ ${fmt(stats.c.d)}`} sub={stats.c.d < 0 ? 'Pérdida Deval.' : 'Ganancia Cambiaria'} icon={<DevaluationIcon />} c={stats.c.d < 0 ? "rose" : "emerald"} isDark={isDark} />
+            <div className="animate-in fade-in duration-700 h-full flex flex-col gap-4">
+              {/* KPIs COMPACTOS (ZERO-SCROLL) */}
+              <section className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+                <KpiTile label="Caja Divisa" val={`$ ${fmt(stats.c.u)}`} icon={<DollarSign />} c="jes" isDark={isDark} />
+                <KpiTile label="Caja VES" val={`Bs. ${fmt(stats.c.vc)}`} sub={`$ ${fmt(stats.c.vc / tasa)}`} icon={<CreditCard />} c="jes" isDark={isDark} />
+                <KpiTile label="Móvil/Banco" val={`Bs. ${fmt(stats.c.vb)}`} sub={`$ ${fmt(stats.c.vb / tasa)}`} icon={<Landmark />} c="jes" isDark={isDark} />
+                <KpiTile label="Total VES" val={`Bs. ${fmt(stats.c.vt)}`} sub={`$ ${fmt(stats.c.vt / tasa)}`} icon={<PiggyBank />} c="amber" isDark={isDark} />
+                <KpiTile label="Tasa BCV" val={`${tasa.toFixed(2)}`} sub="VES/$" icon={<Database />} c="amber" isDark={isDark} />
+                <KpiTile label="Poder Real" val={`$ ${fmt(stats.c.t)}`} sub={`vs $${fmt(stats.c.o)}`} icon={<TrendingUp />} c="jes" isDark={isDark} />
+                <KpiTile label="Diferencial" val={`${stats.c.d >= 0 ? '+' : ''}$ ${fmt(stats.c.d)}`} sub={stats.c.d < 0 ? 'Deval.' : 'Ganancia'} icon={<DevaluationIcon />} c={stats.c.d < 0 ? "rose" : "emerald"} isDark={isDark} />
               </section>
 
-              {/* PERFORMANCE CHART */}
-              <div className={`${cardClass} rounded-[2rem] p-6 lg:p-10 transition-all`}>
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
-                  <div>
-                    <h3 className="text-sm font-black uppercase tracking-tighter">
-                      {filtroActivo === "ANUAL" ? "Movimiento Anual Institucional" : `Tráfico: ${ALL_MONTHS.find(m => m.id === filtroActivo)?.name.toUpperCase()}`}
-                    </h3>
-                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 italic opacity-60">
-                      {filtroActivo === "ANUAL" ? "Balance por periodo mensual" : "Flujo diario de ingresos y egresos"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-4 text-[9px] font-black uppercase border border-white/5 p-3 rounded-xl bg-white/[0.02]">
-                    <span className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-500 rounded-sm" /> Ingresos</span>
-                    <span className="flex items-center gap-2 text-rose-500"><div className="w-3 h-3 bg-rose-500 rounded-sm" /> Egresos</span>
-                    <span className="flex items-center gap-2 text-emerald-500"><div className="w-4 h-1 bg-emerald-500 rounded-full" /> Flujo Neto</span>
+              {/* PERFORMANCE CHART ADAPTADO */}
+              <div className={`${cardClass} rounded-[2rem] p-4 lg:p-6 flex-1 flex flex-col min-h-0`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-[12px] font-black uppercase tracking-tighter">Performance {filtroActivo === "ANUAL" ? "Anual" : "Mensual"}</h3>
+                  <div className="flex gap-4 text-[8px] font-black uppercase">
+                    <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND.primary }} /> Ingresos</span>
+                    <span className="flex items-center gap-2" style={{ color: BRAND.accent }}><div className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND.accent }} /> Flujo</span>
                   </div>
                 </div>
-                <div className="h-[340px] lg:h-[420px]">
+                <div className="flex-1 min-h-[180px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={stats.trend}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)"} />
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 10, fontWeight: 900, fill: isDark ? '#475569' : '#94a3b8' }}
-                      />
-                      <YAxis hide />
+                      <defs>
+                        <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={BRAND.primary} stopOpacity={0.2} />
+                          <stop offset="95%" stopColor={BRAND.primary} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)"} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: isDark ? '#475569' : '#94a3b8' }} />
+                      <YAxis hide domain={['auto', 'auto']} />
                       <Tooltip
-                        formatter={(v: any) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]}
-                        contentStyle={{ backgroundColor: isDark ? '#0a0c10' : '#fff', border: 'none', borderRadius: '20px', boxShadow: '0 25px 50px rgba(0,0,0,0.3)', fontSize: '12px', fontWeight: 900, color: isDark ? '#fff' : '#000' }}
+                        cursor={{ stroke: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', strokeWidth: 20 }}
+                        formatter={(v: any) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`]}
+                        contentStyle={{ backgroundColor: isDark ? '#020306' : '#fff', border: 'none', borderRadius: '16px', fontSize: '10px', fontWeight: 900, color: isDark ? '#fff' : '#000' }}
                       />
-                      <Bar dataKey="in" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={filtroActivo === "ANUAL" ? 28 : 12} />
-                      <Bar dataKey="out" fill="#f43f5e" radius={[6, 6, 0, 0]} barSize={filtroActivo === "ANUAL" ? 28 : 12} />
-                      <Line type="monotone" dataKey="net" stroke="#10b981" strokeWidth={5} dot={{ r: filtroActivo === "ANUAL" ? 5 : 2.5, fill: '#10b981', strokeWidth: 0 }} />
+                      <Area type="monotone" dataKey="in" stroke="none" fill="url(#colorIn)" />
+                      <Bar dataKey="in" fill={BRAND.primary} radius={[4, 4, 0, 0]} barSize={15} />
+                      <Bar dataKey="out" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={15} />
+                      <Line type="monotone" dataKey="net" stroke={BRAND.accent} strokeWidth={4} dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              {/* TORTICAS (PERIODIC PERFORMANCE) */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SmartPie title={`Fuentes de Ingreso (${ALL_MONTHS.find(m => m.id === filtroActivo)?.name})`} data={stats.p.in} isDark={isDark} />
-                <SmartPie title={`Estructura de Gastos (${ALL_MONTHS.find(m => m.id === filtroActivo)?.name})`} data={stats.p.out} isDark={isDark} />
+              {/* TORTICAS COMPACTAS */}
+              <div className="grid grid-cols-2 gap-4 h-[220px]">
+                <SmartPie title="Ingresos" data={stats.p.in} isDark={isDark} compact />
+                <SmartPie title="Gastos" data={stats.p.out} isDark={isDark} compact />
               </div>
             </div>
           )}
@@ -814,9 +803,17 @@ const App: React.FC = () => {
 
 // --- SUB-COMPONENTES ATÓMICOS v9.7 ---
 const NavBtn = ({ active, onClick, icon, label, isDark }: any) => {
-  const c = active ? isDark ? 'bg-blue-600 text-white shadow-2xl shadow-blue-500/20' : 'bg-blue-600 text-white shadow-2xl shadow-blue-500/40' : (isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50 shadow-sm');
+  const c = active
+    ? `text-white shadow-2xl transition-all scale-105`
+    : (isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:bg-slate-100 shadow-sm');
+
   return (
-    <button onClick={onClick} title={label} className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-2.5 p-3.5 md:px-5 md:py-3.5 rounded-xl transition-all font-black uppercase text-[11px] flex-1 md:flex-none ${c}`}>
+    <button
+      onClick={onClick}
+      title={label}
+      className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-2.5 p-3.5 md:px-5 md:py-3.5 rounded-xl transition-all font-black uppercase text-[11px] flex-1 md:flex-none ${c}`}
+      style={active ? { backgroundColor: BRAND.primary } : {}}
+    >
       <div className="w-6 h-6 md:w-5 md:h-5">{icon}</div>
       <span className="hidden md:block tracking-[0.15em] whitespace-nowrap">{label}</span>
     </button>
@@ -824,27 +821,33 @@ const NavBtn = ({ active, onClick, icon, label, isDark }: any) => {
 };
 
 const KpiTile = ({ label, val, sub, icon, c, isDark }: any) => {
-  const colorMap: any = {
-    blue: 'text-blue-500 bg-blue-500/5 border-blue-500/10',
-    indigo: 'text-indigo-500 bg-indigo-500/5 border-indigo-500/10',
-    emerald: 'text-emerald-500 bg-emerald-500/5 border-emerald-500/10',
-    rose: 'text-rose-500 bg-rose-500/5 border-rose-500/10',
-    amber: 'text-amber-500 bg-amber-500/5 border-amber-500/10'
+  const g: any = {
+    jes: `from-[${BRAND.primary}] to-[#3a7c7d] shadow-[${BRAND.primary}]/20`,
+    amber: "from-amber-400 to-orange-600 shadow-amber-500/20",
+    rose: "from-rose-500 to-red-700 shadow-rose-500/20",
+    emerald: "from-emerald-500 to-teal-700 shadow-emerald-500/20"
   };
+
   return (
-    <div className={`${isDark ? 'bg-[#0a0c10] border-white/5' : 'bg-white border-slate-100 shadow-md'} ${colorMap[c]} p-6 rounded-[2rem] border flex flex-col items-center text-center transition-all hover:scale-[1.03] group`}>
-      <div className={`mb-3 opacity-60 transition-all group-hover:opacity-100 group-hover:scale-110`}>{icon}</div>
-      <p className={`text-[8px] font-black uppercase tracking-widest mb-1.5 italic leading-tight ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{label}</p>
-      <h4 className={`text-[14px] font-black leading-none tracking-tighter whitespace-nowrap ${isDark ? 'text-white' : 'text-slate-900'}`}>{val}</h4>
-      {sub && <p className="text-[10px] font-black mt-1.5 opacity-80 tracking-tighter">{sub}</p>}
+    <div className={`relative overflow-hidden p-3 md:p-4 rounded-[1.25rem] border transition-all duration-300 hover:translate-y-[-2px] ${isDark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-slate-100 shadow-lg'}`}>
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-lg bg-gradient-to-br ${g[c] || g.jes} text-white shadow-lg shrink-0`}>
+          {React.cloneElement(icon, { size: 14, strokeWidth: 3 })}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[7px] font-black uppercase tracking-widest text-slate-500 truncate">{label}</p>
+          <h4 className={`text-[13px] font-black tracking-tighter leading-none ${isDark ? 'text-white' : 'text-slate-900'} truncate`}>{val}</h4>
+          {sub && <p className="text-[8px] font-bold text-slate-500/60 truncate mt-0.5">{sub}</p>}
+        </div>
+      </div>
     </div>
   );
 };
 
-const SmartPie = ({ title, data, isDark }: any) => (
-  <div className={`${isDark ? 'bg-[#0a0c10] border-white/5' : 'bg-white border-slate-100 shadow-lg'} p-10 rounded-[2.5rem] border transition-all hover:shadow-blue-500/5`}>
-    <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-12 text-center italic opacity-70 border-b border-white/5 pb-4">{title}</h3>
-    <div className="h-[260px] w-full relative">
+const SmartPie = ({ title, data, isDark, compact }: any) => (
+  <div className={`${isDark ? 'bg-[#0a0c10] border-white/5' : 'bg-white border-slate-100 shadow-lg'} p-4 rounded-[1.5rem] border flex flex-col h-full`}>
+    <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4 italic opacity-70 border-b border-white/5 pb-2">{title}</h3>
+    <div className="flex-1 w-full relative">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -886,9 +889,9 @@ const SmartPie = ({ title, data, isDark }: any) => (
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none w-[130px]">
-        <p className="text-[12px] font-black uppercase leading-tight truncate px-2" style={{ color: isDark ? '#fff' : '#000' }}>{data[0]?.name || 'N/A'}</p>
-        <div className="w-8 h-px bg-blue-500/30 mx-auto my-2" />
-        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Mayor Tráfico</p>
+        <p className="text-[10px] font-black uppercase leading-tight truncate px-2" style={{ color: isDark ? '#fff' : '#000' }}>{data[0]?.name || 'N/A'}</p>
+        <div className="w-6 h-px mx-auto my-1.5 opacity-20" style={{ backgroundColor: BRAND.primary }} />
+        <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-none">Top Categoría</p>
       </div>
     </div>
     <div className="mt-12 grid grid-cols-2 gap-4">
