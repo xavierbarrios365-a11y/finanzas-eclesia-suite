@@ -331,20 +331,30 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
     
     const tasa = Number(getCredential("TASA_ACTUAL")) || 40.5;
 
-    // Calcular Balances (Total + Categoría)
+    // --- CÁLCULO DE BALANCES QUIRÚRGICO ---
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sh = ss.getSheetByName(SHEET_NAME);
-    let balanceTotal = 0;
-    let balancesCat = {}; // { "Categoría": monto }
+    let balanceTotalUSD = 0;
+    let balanceTotalVES = 0;
+    const balancesCatUSD = {};
 
     if (sh) {
-      const data = sh.getRange(2, 7, sh.getLastRow() - 1, 7).getValues(); // Col 7 (Cat) a Col 13 (Total USD)
-      data.forEach(row => {
-        const cat = String(row[0] || "General").trim();
-        const usdVal = parseFloat(row[6]) || 0;
-        balanceTotal += usdVal;
-        balancesCat[cat] = (balancesCat[cat] || 0) + usdVal;
-      });
+      const lastRow = sh.getLastRow();
+      if (lastRow > 1) {
+        // Obtenemos Cat(7), USD(13), VES(14)
+        const data = sh.getRange(2, 7, lastRow - 1, 8).getValues(); 
+        data.forEach(row => {
+          const cat = String(row[0] || "General").trim();
+          const u = parseFloat(row[6]) || 0; // Col 13
+          const v = parseFloat(row[7]) || 0; // Col 14
+          
+          balanceTotalUSD += u;
+          balanceTotalVES += v;
+          
+          const nCat = String(cat).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          balancesCatUSD[nCat] = (balancesCatUSD[nCat] || 0) + u;
+        });
+      }
     }
 
     let msg = "";
@@ -352,10 +362,14 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
        msg = v.desc;
     } else {
        const icono = String(v.tipo).toLowerCase().includes("ingreso") ? "💰" : "💸";
-       const montoActual = Math.abs(v.monto);
+       const mAct = Math.abs(v.monto);
+       const mUSD = Math.abs(usd);
+       const mVES = Math.abs(ves);
+       
+       // Formato de Monto Principal
        const montoStr = v.moneda === "VES" 
-          ? `${montoActual.toFixed(2)} VES (*$${Math.abs(usd).toFixed(2)}*)`
-          : `$${montoActual.toFixed(2)} (*${Math.abs(ves).toFixed(2)} VES*)`;
+          ? `${mAct.toLocaleString('es-VE')} VES (*$${mUSD.toFixed(2)}*)`
+          : `$${mAct.toFixed(2)} (*${mVES.toLocaleString('es-VE')} VES*)`;
        
        msg = `${icono} *${v.tipo || "Movimiento"} Registrado*\n`;
        msg += `──────────────\n`;
@@ -363,28 +377,31 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
        msg += `📊 *Categoría:* ${v.cat || "General"}\n`;
        msg += `💵 *Monto:* ${montoStr}\n`;
        msg += `──────────────\n`;
-       msg += `📑 *Balances (VES):*\n`;
+       msg += `📑 *Saldos por Categoría (USD / VES):*\n`;
        
-       // Filtro de Categorías Específicas solicitadas por el usuario
        const catInteres = ["Ofrendas Generales", "Diezmos", "Pago de Luz", "Ofrendas Especiales", "Aporte"];
-       const normalizeStr = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+       const normalize = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
        
        catInteres.forEach(c => {
-         // Buscar el balance en el objeto balancesCat usando normalización
-         let bUSD = 0;
-         const normC = normalizeStr(c);
-         for (let key in balancesCat) {
-           if (normalizeStr(key).includes(normC)) {
-             bUSD = balancesCat[key];
+         let bU = 0;
+         const nC = normalize(c);
+         // Buscamos coincidencia flexible
+         for (let key in balancesCatUSD) {
+           if (key.includes(nC) || nC.includes(key)) {
+             bU = balancesCatUSD[key];
              break;
            }
          }
-         const bVES = bUSD * tasa;
-         msg += `• ${c}: ${bVES.toLocaleString('es-VE', {minimumFractionDigits:2})} VES\n`;
+         const bV = bU * tasa;
+         msg += `• ${c}: $${bU.toFixed(2)} (*${bV.toLocaleString('es-VE', {minimumFractionDigits:2})} VES*)\n`;
        });
 
        msg += `──────────────\n`;
-       msg += `🏦 *TOTAL DISPONIBLE:* $${balanceTotal.toFixed(2)}`;
+       msg += `🏦 *TOTAL DISPONIBLE DISPONIBLE:*\n`;
+       msg += `💵 $${balanceTotalUSD.toFixed(2)}\n`;
+       msg += `🇻🇪 ${balanceTotalVES.toLocaleString('es-VE', {minimumFractionDigits:2})} VES\n`;
+       msg += `──────────────\n`;
+       msg += `📈 *Tasa Aplicada:* ${tasa.toFixed(2)} VES/$`;
     }
 
     chatids.forEach(id => {
