@@ -43,7 +43,10 @@ const PARSE_NUM = (v: any) => {
     if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
     else s = s.replace(/,/g, "");
   } else if (s.includes(",")) s = s.replace(",", ".");
-  return parseFloat(s) || 0;
+  let n = parseFloat(s) || 0;
+  // Sanity check for Tasa (BCV usually around 40, shifted decimals are common in parsing)
+  if (n > 200 && n < 500) n = n / 10;
+  return n;
 };
 
 const fmt = (v: any) => {
@@ -93,25 +96,38 @@ const App: React.FC = () => {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  const normalizeMonth = (val: any) => {
+  const normalizeMonth = (val: any, fecha?: string) => {
     let s = String(val || "").toLowerCase().trim();
-    if (!s) return "unknown";
+
+    // Fallback: If month label is empty, extract from date
+    if (!s && fecha) {
+      const d = fecha.split(/[-/]/);
+      if (d.length >= 2) {
+        // Handle YYYY-MM-DD or DD/MM/YYYY
+        const mIdx = d[0].length === 4 ? parseInt(d[1]) : parseInt(d[1]);
+        if (mIdx >= 1 && mIdx <= 12) return MONTH_MAP[mIdx.toString().padStart(2, '0')];
+      }
+    }
+
+    if (!s || s === "unknown") return "unknown";
 
     // Case 1: ISO 2026-02-10
     const isoMatch = s.match(/^(\d{4})-(\d{2})-\d{2}/);
     if (isoMatch) return MONTH_MAP[isoMatch[2]] || s;
 
-    // Case 2: DD/MM/YYYY or DD-MM-YYYY (Very common in Google Sheets)
+    // Case 2: DD/MM/YYYY or DD-MM-YYYY
     const dmyMatch = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
     if (dmyMatch) return MONTH_MAP[dmyMatch[2].padStart(2, '0')] || s;
 
-    // Case 3: Just the month name or something else
+    // Case 3: Raw number (e.g. "02" or "2")
+    if (/^\d{1,2}$/.test(s)) {
+      const idx = s.padStart(2, '0');
+      if (MONTH_MAP[idx]) return MONTH_MAP[idx];
+    }
+
+    // Case 4: Just keywords
     const m = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
     for (let i = 0; i < m.length; i++) if (s.includes(m[i])) return `${(i + 1).toString().padStart(2, '0')}-${m[i]}`;
-
-    // Fallback: If it's just a number, assume it's the month (rare case)
-    const numMatch = s.match(/^(\d+)$/);
-    if (numMatch) return MONTH_MAP[numMatch[1].padStart(2, '0')] || s;
 
     return s;
   };
@@ -124,14 +140,18 @@ const App: React.FC = () => {
       const res = await fetch(`${API_URL}?action=getData&t=${Date.now()}`); // CACHE BUSTING
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        const pNum = (v: any) => {
+        // Unified Precision Parser v5.0
+        const pNum = (v: any, isTasa = false) => {
           if (typeof v === 'number') return v;
           let s = String(v || "0").replace(/[^\d,.-]/g, "").trim();
           if (s.includes(",") && s.includes(".")) {
             if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
             else s = s.replace(/,/g, "");
           } else if (s.includes(",")) s = s.replace(",", ".");
-          return parseFloat(s) || 0;
+          let n = parseFloat(s) || 0;
+          // Tasa Sanity Check (BCV shift decoder)
+          if (isTasa && n > 200 && n < 500) n = n / 10;
+          return n;
         };
 
         let hIdx = json.data.findIndex((r: any[]) => r.some(c => String(c || "").toLowerCase().includes("id")));
@@ -166,16 +186,39 @@ const App: React.FC = () => {
           .filter((r: any[]) => {
             const id = String(r[col.id] || "").trim();
             const monto = pNum(r[col.m]);
-            const mes = String(r[col.mes] || "").trim();
-            return id.length > 0 && monto !== 0 && mes.length > 0; // Solo filas reales con montos y meses
+            return id.length > 0 && monto !== 0;
           })
-          .map((r: any[]) => ({
-            id: String(r[col.id] || ""), mes: normalizeMonth(r[col.mes]), tipo: String(r[col.tipo] || "").toLowerCase(),
-            cat: String(r[col.cat] || "General"), desc: String(r[col.desc] || ""), met: String(r[col.met] || "").toLowerCase(),
-            m_orig: PARSE_NUM(r[col.m]), mon_orig: String(r[col.mon] || "USD").toUpperCase().includes("USD") ? "USD" : "VES",
-            t_reg: PARSE_NUM(r[col.t]), usd: PARSE_NUM(r[col.usd]), ves: PARSE_NUM(r[col.ves]),
-            fecha: String(r[col.fecha] || "").split('T')[0]
-          }));
+          .map((r: any[]) => {
+            const fRaw = String(r[col.fecha] || "").split('T')[0];
+            const mRaw = String(r[col.mon] || "").toUpperCase();
+            const isUSD = mRaw.includes("USD") || mRaw.includes("$") || mRaw.includes("DIVISA") || mRaw.includes("EFECTIVO");
+
+            // Precision mapping: use unified parser for absolute values
+            const m_orig = Math.abs(pNum(r[col.m]));
+            const t_reg = pNum(r[col.t], true) || tasa;
+            let v_usd = Math.abs(pNum(r[col.usd]));
+            let v_ves = Math.abs(pNum(r[col.ves]));
+
+            if (isUSD) {
+              v_usd = v_usd || m_orig;
+              v_ves = 0;
+            } else {
+              v_ves = v_ves || m_orig;
+              v_usd = v_usd || (v_ves / (t_reg > 1 ? t_reg : tasa));
+            }
+
+            return {
+              id: String(r[col.id] || ""),
+              mes: normalizeMonth(r[col.mes], fRaw),
+              tipo: String(r[col.tipo] || "").toLowerCase(),
+              cat: String(r[col.cat] || "General"),
+              desc: String(r[col.desc] || ""),
+              met: String(r[col.met] || "").toLowerCase(),
+              m_orig, mon_orig: isUSD ? "USD" : "VES",
+              t_reg, usd: v_usd, ves: v_ves,
+              fecha: fRaw
+            };
+          });
         setData(mapped.sort((a: any, b: any) => {
           const idA = parseFloat(String(a.id).replace(/[^\d.]/g, '')) || 0;
           const idB = parseFloat(String(b.id).replace(/[^\d.]/g, '')) || 0;
@@ -187,8 +230,38 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const ft = async () => { try { const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial'); const j = await r.json(); if (j.promedio) setTasa(j.promedio); } catch (e) { } };
-    ft();
+    const handleSyncRate = async () => {
+      setSyncing(true);
+      try {
+        // External Sync (DolarAPI)
+        const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+        const j = await r.json();
+        if (j.promedio) {
+          let t = j.promedio;
+          if (t > 200) t = t / 10;
+          setTasa(t);
+        } else {
+          // Internal Sync (Spreadsheet)
+          const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: "updateRate" })
+          });
+          const json = await res.json();
+          if (json.success && json.tasa) {
+            let t = json.tasa;
+            if (t > 200) t = t / 10;
+            setTasa(t);
+            fetchData(true);
+          }
+        }
+      } catch (e) {
+        console.error("Sync error", e);
+      } finally {
+        setSyncing(false);
+      }
+    };
+    handleSyncRate();
 
     // MOTOR DE SINCRONIZACIÓN GLOBAL (60s) - Estabilidad total solicitado por el usuario
     const interval = setInterval(() => {
@@ -201,18 +274,22 @@ const App: React.FC = () => {
   const stats = useMemo(() => {
     const currentYear = new Date().getFullYear();
 
-    // Consistent base data: only records with valid months
+    // Consistent base data: only records with valid months (Allowing current or previous year transition)
     const validData = data.filter(d => {
       const dMonthIdx = ALL_MONTHS.findIndex(m => m.id === d.mes);
-      const isCurrentYear = d.fecha && d.fecha.includes(String(currentYear));
-      return dMonthIdx >= 1 && isCurrentYear;
-    });
+      // Robust Year Detection: Look for 4 digits or common 2-digit years
+      const parts = String(d.fecha || "").split(/[-/]/);
+      const rowYear = parts.find(p => p.length === 4) || parts.find(p => p.length === 2 && (p === "25" || p === "26"));
 
+      const isCorrectYear = rowYear && (rowYear.includes(String(currentYear)) || rowYear.includes(String(currentYear).slice(-2)));
+      return dMonthIdx >= 1 && isCorrectYear;
+    });
     const getMult = (d: any) => {
-      const t = (d.tipo || "").toLowerCase();
-      if (t.includes("ingreso")) return 1;
-      if (t.includes("egreso")) return -1;
-      return 0;
+      const all = String((d.tipo || "") + (d.cat || "") + (d.desc || "")).toLowerCase();
+      // Motor de detección robusto v15.1
+      if (/ingreso|abono|entrada|inicial|diezmo|ofrenda|aporte|venta/i.test(all)) return 1;
+      if (/egreso|salida|gasto|pago|comision|compra|transfer/i.test(all)) return -1;
+      return 0; // Failsafe para no contaminar balances con basura
     };
 
     // PERFORMANCE DATA: Restricted to selected period
@@ -223,33 +300,28 @@ const App: React.FC = () => {
       performanceData = validData.filter(d => d.mes === filtroActivo);
     }
 
-    // Balance Data: Cumulative from start of year up to selected point
-    let balanceData = [];
-    if (filtroActivo === "ANUAL") {
-      balanceData = validData;
-    } else {
-      const dMonthIdx = ALL_MONTHS.findIndex(m => m.id === filtroActivo);
-      balanceData = validData.filter(d => {
-        const rowMonthIdx = ALL_MONTHS.findIndex(m => m.id === d.mes);
-        return rowMonthIdx >= 1 && rowMonthIdx <= dMonthIdx;
-      });
-    }
+    // KPI DATA: ALWAYS Lifetime/Global for real-time balances (Ignoring period filters)
+    // This ensures "Caja" shows the current actual bank balance.
+    const kpiData = data;
 
-    // Calibración de Liquidez v14.3 (Power/Gain Analysis)
+    // Calibración de Liquidez v15.0 (Real-Time Precision)
     let u = 0, vc = 0, vb = 0, dev = 0, o = 0;
-    balanceData.forEach(d => {
-      o += d.usd; // Valor USD original (pre-firmado)
+    kpiData.forEach(d => {
+      const mult = getMult(d);
+      if (mult === 0) return;
+
       const met = (d.met || "").toLowerCase();
       const mon = (d.mon_orig || "VES").toUpperCase();
       const isUSD = mon.includes('USD') || mon.includes('$');
       const isCash = met.includes('efectivo') || met.includes('cash') || met.includes('caja');
 
+      o += d.usd * mult;
       if (isUSD) {
-        u += d.usd;
+        u += d.usd * mult;
       } else {
-        if (isCash) vc += d.ves; else vb += d.ves;
+        if (isCash) vc += d.ves * mult; else vb += d.ves * mult;
         const tr = d.t_reg > 1 ? d.t_reg : tasa;
-        dev += (d.ves / tr) - (d.ves / tasa);
+        dev += ((d.ves / tr) - (d.ves / tasa)) * mult;
       }
     });
 
@@ -272,13 +344,16 @@ const App: React.FC = () => {
     } else {
       const days: any = {};
       performanceData.forEach(d => {
-        const day = d.fecha.split('-')[2] || "??";
+        // Universal Day Detection (v2.1)
+        const parts = String(d.fecha || "").split(/[-/]/);
+        const day = parts.length === 3 ? (parts[0].length === 4 ? parts[2] : parts[0]) : "??";
+
         if (!days[day]) days[day] = { name: day, in: 0, out: 0, net: 0 };
-        const mult = getMult(d);
-        if (mult > 0) days[day].in += d.usd; else if (mult < 0) days[day].out += Math.abs(d.usd);
+        const m = getMult(d);
+        if (m > 0) days[day].in += d.usd; else if (m < 0) days[day].out += Math.abs(d.usd);
         days[day].net = days[day].in - days[day].out;
       });
-      trendData = Object.keys(days).sort().map(k => days[k]);
+      trendData = Object.keys(days).sort((a, b) => parseInt(a) - parseInt(b)).map(k => days[k]);
     }
 
     const isExchange = (d: any) => /permuta|cambio|transf/i.test((d.cat || "") + (d.desc || ""));
@@ -336,6 +411,15 @@ const App: React.FC = () => {
   const handleSyncRate = async () => {
     setSyncing(true);
     try {
+      const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+      const j = await r.json();
+      let t = j.promedio || 0;
+      if (t > 200) t = t / 10;
+      if (t > 0) {
+        setTasa(t);
+        return;
+      }
+      // Fallback a Google Sheets
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -343,14 +427,12 @@ const App: React.FC = () => {
       });
       const json = await res.json();
       if (json.success && json.tasa) {
-        setTasa(json.tasa);
+        let ts = json.tasa;
+        if (ts > 200) ts = ts / 10;
+        setTasa(ts);
         fetchData(true);
       }
-    } catch (e) {
-      alert("Error al sincronizar tasa");
-    } finally {
-      setSyncing(false);
-    }
+    } catch (e) { } finally { setSyncing(false); }
   };
 
   const handleEdit = (r: any) => { setEditingRow({ ...r }); setIsEditModalOpen(true); };
@@ -466,60 +548,70 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
+        <div className={`p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto flex-1 h-full flex flex-col min-h-0`}>
 
           {activeTab === 'dash' && (
             <div className="animate-in fade-in duration-700 h-full flex flex-col gap-4">
               {/* KPIs COMPACTOS (ZERO-SCROLL) */}
               <section className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
                 <KpiTile label="Caja Divisa" val={`$ ${fmt(stats.c.u)}`} icon={<DollarSign />} c="jes" isDark={isDark} />
-                <KpiTile label="Caja VES" val={`Bs. ${fmt(stats.c.vc)}`} sub={`$ ${fmt(stats.c.vc / tasa)}`} icon={<CreditCard />} c="jes" isDark={isDark} />
-                <KpiTile label="Móvil/Banco" val={`Bs. ${fmt(stats.c.vb)}`} sub={`$ ${fmt(stats.c.vb / tasa)}`} icon={<Landmark />} c="jes" isDark={isDark} />
-                <KpiTile label="Total VES" val={`Bs. ${fmt(stats.c.vt)}`} sub={`$ ${fmt(stats.c.vt / tasa)}`} icon={<PiggyBank />} c="amber" isDark={isDark} />
+                <KpiTile label="Caja VES" val={`Bs. ${fmt(stats.c.vc)}`} sub={`$ ${fmt(stats.c.vc / (tasa > 1 ? tasa : 1))}`} icon={<CreditCard />} c="jes" isDark={isDark} />
+                <KpiTile label="Móvil/Banco" val={`Bs. ${fmt(stats.c.vb)}`} sub={`$ ${fmt(stats.c.vb / (tasa > 1 ? tasa : 1))}`} icon={<Landmark />} c="jes" isDark={isDark} />
+                <KpiTile label="Total VES" val={`Bs. ${fmt(stats.c.vt)}`} sub={`$ ${fmt(stats.c.vt / (tasa > 1 ? tasa : 1))}`} icon={<PiggyBank />} c="amber" isDark={isDark} />
                 <KpiTile label="Tasa BCV" val={`${tasa.toFixed(2)}`} sub="VES/$" icon={<Database />} c="amber" isDark={isDark} />
                 <KpiTile label="Poder Real" val={`$ ${fmt(stats.c.t)}`} sub={`vs $${fmt(stats.c.o)}`} icon={<TrendingUp />} c="jes" isDark={isDark} />
                 <KpiTile label="Diferencial" val={`${stats.c.d >= 0 ? '+' : ''}$ ${fmt(stats.c.d)}`} sub={stats.c.d < 0 ? 'Deval.' : 'Ganancia'} icon={<DevaluationIcon />} c={stats.c.d < 0 ? "rose" : "emerald"} isDark={isDark} />
               </section>
 
-              {/* PERFORMANCE CHART ADAPTADO */}
-              <div className={`${cardClass} rounded-[2rem] p-4 lg:p-6 flex-1 flex flex-col min-h-0`}>
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-[12px] font-black uppercase tracking-tighter">Performance {filtroActivo === "ANUAL" ? "Anual" : "Mensual"}</h3>
-                  <div className="flex gap-4 text-[8px] font-black uppercase">
-                    <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND.primary }} /> Ingresos</span>
-                    <span className="flex items-center gap-2" style={{ color: BRAND.accent }}><div className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND.accent }} /> Flujo</span>
+              {/* CONTENEDOR DE GRÁFICOS FLEXIBLE */}
+              <div className="flex-1 min-h-[400px] flex flex-col gap-4">
+                {/* PERFORMANCE CHART ADAPTADO */}
+                <div className={`${cardClass} rounded-[2rem] p-4 lg:p-6 flex-[1.5] flex flex-col min-h-[250px]`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-[12px] font-black uppercase tracking-tighter">Performance {filtroActivo === "ANUAL" ? "Anual" : "Mensual"}</h3>
+                    <div className="flex gap-4 text-[8px] font-black uppercase">
+                      <span className="flex items-center gap-2" style={{ color: BRAND.primary }}><div className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND.primary }} /> Ingresos</span>
+                      <span className="flex items-center gap-2" style={{ color: BRAND.accent }}><div className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND.accent }} /> Flujo</span>
+                    </div>
+                  </div>
+                  <div className="w-full relative h-[250px] mt-4">
+                    {stats.trend.length === 0 || stats.trend.every((pt: any) => pt.in === 0 && pt.out === 0) ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
+                        <Bug className="w-10 h-10 mb-2" style={{ color: BRAND.primary }} />
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Sin datos para {filtroActivo === 'ANUAL' ? '2026' : filtroActivo}</p>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={stats.trend} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                          <defs>
+                            <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={BRAND.primary} stopOpacity={0.3} />
+                              <stop offset="95%" stopColor={BRAND.primary} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)"} />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: isDark ? '#475569' : '#94a3b8' }} />
+                          <YAxis hide domain={['auto', 'auto']} />
+                          <Tooltip
+                            cursor={{ stroke: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', strokeWidth: 20 }}
+                            formatter={(v: any) => [`$${parseFloat(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`]}
+                            contentStyle={{ backgroundColor: isDark ? '#020306' : '#fff', border: 'none', borderRadius: '16px', fontSize: '10px', fontWeight: 900, color: isDark ? '#fff' : '#000' }}
+                          />
+                          <Area type="monotone" dataKey="in" stroke="none" fill="url(#colorIn)" />
+                          <Bar dataKey="in" fill={BRAND.primary} radius={[4, 4, 0, 0]} barSize={12} />
+                          <Bar dataKey="out" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={12} />
+                          <Line type="monotone" dataKey="net" stroke={BRAND.accent} strokeWidth={3} dot={false} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </div>
-                <div className="flex-1 min-h-[180px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={stats.trend}>
-                      <defs>
-                        <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={BRAND.primary} stopOpacity={0.2} />
-                          <stop offset="95%" stopColor={BRAND.primary} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)"} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: isDark ? '#475569' : '#94a3b8' }} />
-                      <YAxis hide domain={['auto', 'auto']} />
-                      <Tooltip
-                        cursor={{ stroke: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', strokeWidth: 20 }}
-                        formatter={(v: any) => [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`]}
-                        contentStyle={{ backgroundColor: isDark ? '#020306' : '#fff', border: 'none', borderRadius: '16px', fontSize: '10px', fontWeight: 900, color: isDark ? '#fff' : '#000' }}
-                      />
-                      <Area type="monotone" dataKey="in" stroke="none" fill="url(#colorIn)" />
-                      <Bar dataKey="in" fill={BRAND.primary} radius={[4, 4, 0, 0]} barSize={15} />
-                      <Bar dataKey="out" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={15} />
-                      <Line type="monotone" dataKey="net" stroke={BRAND.accent} strokeWidth={4} dot={false} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
 
-              {/* TORTICAS COMPACTAS */}
-              <div className="grid grid-cols-2 gap-4 h-[220px]">
-                <SmartPie title="Ingresos" data={stats.p.in} isDark={isDark} compact />
-                <SmartPie title="Gastos" data={stats.p.out} isDark={isDark} compact />
+                {/* TORTICAS LADO A LADO */}
+                <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+                  <SmartPie title="Fuentes de Ingreso" data={stats.p.in} isDark={isDark} />
+                  <SmartPie title="Estructura de Gastos" data={stats.p.out} isDark={isDark} />
+                </div>
               </div>
             </div>
           )}
@@ -844,63 +936,28 @@ const KpiTile = ({ label, val, sub, icon, c, isDark }: any) => {
   );
 };
 
-const SmartPie = ({ title, data, isDark, compact }: any) => (
-  <div className={`${isDark ? 'bg-[#0a0c10] border-white/5' : 'bg-white border-slate-100 shadow-lg'} p-4 rounded-[1.5rem] border flex flex-col h-full`}>
-    <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4 italic opacity-70 border-b border-white/5 pb-2">{title}</h3>
-    <div className="flex-1 w-full relative">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={80}
-            outerRadius={110}
-            paddingAngle={8}
-            dataKey="value"
-            label={({ name, percent }) => {
-              // Limpieza quirúrgica: si el nombre parece una fecha, no mostrar.
-              if (name.includes('2026') || name.includes('T') || name.includes(':')) return '';
-              return `${name} (${(percent * 100).toFixed(0)}%)`;
-            }}
-            labelLine={false}
-          >
-            {data.map((_: any, i: any) => (<Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />))}
-          </Pie>
-          <Tooltip
-            formatter={(v: any) => [`$ ${fmt(v)}`]}
-            contentStyle={{ backgroundColor: isDark ? '#0a0c10' : '#fff', border: 'none', borderRadius: '20px', fontSize: '11px', fontWeight: '900', color: isDark ? '#fff' : '#000', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
-            itemStyle={{ color: isDark ? '#fff' : '#000' }}
-          />
-          <Legend
-            verticalAlign="bottom"
-            height={36}
-            content={({ payload }) => (
-              <div className="flex flex-wrap justify-center gap-4 mt-6">
-                {payload?.map((entry: any, index: number) => (
-                  <div key={`item-${index}`} className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{entry.value}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none w-[130px]">
-        <p className="text-[10px] font-black uppercase leading-tight truncate px-2" style={{ color: isDark ? '#fff' : '#000' }}>{data[0]?.name || 'N/A'}</p>
-        <div className="w-6 h-px mx-auto my-1.5 opacity-20" style={{ backgroundColor: BRAND.primary }} />
-        <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-none">Top Categoría</p>
+const SmartPie = ({ title, data, isDark }: any) => (
+  <div className={`${isDark ? 'bg-[#0a0c10] border-white/5' : 'bg-white border-slate-100 shadow-lg'} p-4 rounded-[1.5rem] border flex flex-col h-full min-h-0`}>
+    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 italic opacity-70 border-b border-white/5 pb-2">{title}</h3>
+    <div className="flex-1 flex items-center min-h-0">
+      <div className="w-1/3 h-full relative">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} cx="50%" cy="50%" innerRadius="60%" outerRadius="90%" paddingAngle={5} dataKey="value">
+              {data.map((_: any, i: any) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
+            </Pie>
+            <Tooltip contentStyle={{ backgroundColor: isDark ? '#020306' : '#fff', borderRadius: '12px', fontSize: '9px', fontWeight: 900 }} />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
-    </div>
-    <div className="mt-12 grid grid-cols-2 gap-4">
-      {data.slice(0, 4).map((m: any, i: any) => (
-        <div key={i} className={`${isDark ? 'bg-white/[0.02] border-white/5' : 'bg-slate-50 border-slate-200'} p-5 rounded-2xl flex flex-col items-start border transition-all hover:bg-blue-600/5`}>
-          <span className="text-[9px] font-black text-slate-500 uppercase truncate w-full mb-1">{m.name}</span>
-          <span className={`text-[15px] font-black tracking-tighter ${isDark ? 'text-white' : 'text-slate-900'}`}>$ {fmt(m.value)}</span>
-        </div>
-      ))}
+      <div className="flex-1 grid grid-cols-2 gap-2 ml-4">
+        {data.slice(0, 4).map((m: any, i: any) => (
+          <div key={i} className={`${isDark ? 'bg-white/[0.02] border-white/5' : 'bg-slate-50 border-slate-200'} p-2 rounded-xl flex flex-col items-start border truncate`}>
+            <span className="text-[7px] font-black text-slate-500 uppercase truncate w-full">{m.name}</span>
+            <span className={`text-[11px] font-black tracking-tighter ${isDark ? 'text-white' : 'text-slate-900'}`}>$ {fmt(m.value)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   </div>
 );

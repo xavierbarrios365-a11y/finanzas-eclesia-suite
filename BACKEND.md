@@ -187,8 +187,12 @@ function registrarFila(v, silent = false) {
     else factor = -1; // Por defecto es egreso si no es ingreso
     
     const absMonto = Math.abs(v.monto);
-    const usdEq = v.forced_usd !== undefined ? v.forced_usd : Number((v.moneda === "USD" ? absMonto * factor : (absMonto / tasa) * factor).toFixed(2));
-    const vesEq = v.forced_ves !== undefined ? v.forced_ves : Number((v.moneda === "VES" ? absMonto * factor : (absMonto * tasa) * factor).toFixed(2));
+    // 🔥 PRECISIÓN TOTAL: Los dólares NO suman Bolívares. Aislamiento total solicitado.
+    const isUSD = String(v.moneda || "").toUpperCase().includes("USD");
+    
+    // Si es USD, el total de bolívares es 0 (No afecta el balance VES). Si es VES, el total de USD es la conversión.
+    const usdEq = v.forced_usd !== undefined ? v.forced_usd : Number((isUSD ? absMonto * factor : (absMonto / tasa) * factor).toFixed(2));
+    const vesEq = v.forced_ves !== undefined ? v.forced_ves : Number((isUSD ? 0 : (absMonto * factor)).toFixed(2));
 
     // ID Failsafe: Siempre numérico
     const idValue = v.id || Date.now();
@@ -349,7 +353,11 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
           const v = parseFloat(row[7]) || 0; // Col 14
           
           balanceTotalUSD += u;
-          balanceTotalVES += v;
+          // 🔥 AISLAMIENTO TOTAL EN TELEGRAM: Si la moneda es USD, NO suma a VES.
+          const mon = String(row[4] || "USD").toUpperCase(); // Col 11 (Moneda)
+          if (!mon.includes("USD") && !mon.includes("$")) {
+            balanceTotalVES += v;
+          }
           
           const nCat = String(cat).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
           balancesCatUSD[nCat] = (balancesCatUSD[nCat] || 0) + u;
