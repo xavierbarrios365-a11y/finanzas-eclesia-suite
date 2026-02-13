@@ -108,38 +108,35 @@ function onFormSubmit(e) {
   
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const shForm = ss.getSheetByName(FORM_SHEET_NAME) || ss.getSheets()[0];
-    const headers = shForm.getDataRange().getValues()[0];
-    const idx = getMapping(headers);
-
-    // Mapeo defensivo usando e.values (más rápido) o e.namedValues (más preciso)
-    const res = e.values; 
-    if (!res) return;
-
-    const entry = {
-      timestamp: res[0], 
-      fecha: idx.f !== -1 ? res[idx.f] : new Date(), 
-      tipo: idx.tp !== -1 ? res[idx.tp] : "Ingreso", 
-      cat: idx.c !== -1 ? res[idx.c] : "Gral.", 
-      desc: idx.d !== -1 ? res[idx.d] : "Vía Formulario", 
-      met: idx.m !== -1 ? res[idx.m] : "Efectivo", 
-      monto: idx.mt !== -1 ? parseNum(res[idx.mt]) : 0, 
-      moneda: idx.mn !== -1 ? (String(res[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES") : "USD", 
-      tasa: idx.ts !== -1 ? parseNum(res[idx.ts]) : 0
+    const named = e.namedValues;
+    
+    // Mapeo Blindado (Independiente de la posición de las columnas)
+    const getV = (keys) => {
+      if (!named) return "";
+      for (let k of keys) {
+        if (named[k] && named[k][0]) return named[k][0];
+      }
+      return "";
     };
 
-    // EVITAR DUPLICADOS: Si el timestamp/ID ya existe en la BD, no procesar
-    const shBD = ss.getSheetByName(SHEET_NAME);
-    const idValue = (entry.timestamp instanceof Date) ? entry.timestamp.getTime() : new Date(entry.timestamp).getTime();
-    if (shBD) {
-      const data = shBD.getDataRange().getValues();
-      if (data.some(row => row[0] == idValue)) {
-        console.log("ID ya procesado. Omitiendo.");
-        return;
-      }
-    }
+    const entry = {
+      timestamp: e.values ? e.values[0] : new Date(), 
+      fecha: getV(["Fecha de Transacción", "fecha"]), 
+      tipo: getV(["Tipo de Movimiento", "tipo"]), 
+      cat: getV(["Categoría", "cat"]), 
+      desc: getV(["Descripción / Detalle", "desc"]), 
+      met: getV(["Método de Pago", "metodo"]), 
+      monto: parseNum(getV(["Monto", "monto"])), 
+      moneda: getV(["Moneda de la Transacción", "moneda"]).toUpperCase().includes("USD") ? "USD" : "VES", 
+      tasa: parseNum(getV(["Tasa de Cambio (Referencial)", "tasa"]))
+    };
 
-    console.log("Registrando entrada:", entry.desc, entry.monto, entry.moneda);
+    // GENERADOR DE ID BLINDADO: Evita el error #NUM!
+    // Usamos el tiempo actual en ms como ID único numérico
+    const idValue = Date.now(); 
+    entry.id = idValue;
+
+    console.log("Registrando entrada Blindada:", entry.desc, entry.monto, entry.moneda);
     registrarFila(entry);
   } catch (err) {
     console.error("Error en onFormSubmit:", err.toString());
@@ -187,7 +184,8 @@ function registrarFila(v, silent = false) {
     const usdEq = v.forced_usd !== undefined ? v.forced_usd : Number((v.moneda === "USD" ? absMonto * factor : (absMonto / tasa) * factor).toFixed(2));
     const vesEq = v.forced_ves !== undefined ? v.forced_ves : Number((v.moneda === "VES" ? absMonto * factor : (absMonto * tasa) * factor).toFixed(2));
 
-    const idValue = (v.id) ? Number(v.id) : ((v.timestamp instanceof Date) ? v.timestamp.getTime() : (v.timestamp ? new Date(v.timestamp).getTime() : new Date().getTime()));
+    // ID Failsafe: Siempre numérico
+    const idValue = v.id || Date.now();
 
     // LÓGICA DE ACTUALIZACIÓN: Buscar si el ID ya existe
     const data = sh.getDataRange().getValues();
