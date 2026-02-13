@@ -131,7 +131,7 @@ function onFormSubmit(e) {
       timestamp: e.values ? e.values[0] : new Date(), 
       fecha: getV(["fechatransaccion", "fecha"]), 
       tipo: getV(["tipomovimiento", "tipo"]), 
-      cat: getV(["categoria", "cat"]), 
+      cat: getV(["categoría"]), // EXCLUIDO "cat" para evitar conflicto con "marcatemporal"
       desc: getV(["descripciondetalle", "desc"]), 
       met: getV(["metodopago", "metodo"]), 
       monto: parseNum(getV(["monto"])), 
@@ -308,10 +308,11 @@ function actualizarTasaBCV(silentMode = false) {
     if (json.promedio) {
       const tasaVieja = PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL");
       const nuevaTasa = json.promedio;
-      PropertiesService.getScriptProperties().setProperty("TASA_ACTUAL", nuevaTasa);
-      
-      // Notificar cambio de tasa
-      enviarAlertaTelegram({tipo: "Cambio Tasa", desc: `🔄 *Tasa BCV Actualizada*\nDe: ${tasaVieja} ➔ A: ${nuevaTasa} VES`}, 0);
+      if (Number(tasaVieja) !== Number(nuevaTasa)) {
+        PropertiesService.getScriptProperties().setProperty("TASA_ACTUAL", nuevaTasa);
+        // Notificar cambio de tasa solo si cambió
+        enviarAlertaTelegram({tipo: "Cambio Tasa", desc: `🔄 *Tasa BCV Actualizada*\nDe: ${tasaVieja} ➔ A: ${nuevaTasa} VES`}, 0);
+      }
       
       if (!silentMode) SpreadsheetApp.getUi().alert("✅ Tasa actualizada a: " + nuevaTasa);
       return nuevaTasa;
@@ -328,6 +329,8 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
     const chatids = (getCredential("TELEGRAM_CHAT_ID") || "").split(",");
     if (!token || token.includes("TU_TOKEN") || chatids.length === 0) return;
     
+    const tasa = Number(getCredential("TASA_ACTUAL")) || 40.5;
+
     // Calcular Balances (Total + Categoría)
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sh = ss.getSheetByName(SHEET_NAME);
@@ -352,7 +355,7 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
        const montoActual = Math.abs(v.monto);
        const montoStr = v.moneda === "VES" 
           ? `${montoActual.toFixed(2)} VES (*$${Math.abs(usd).toFixed(2)}*)`
-          : `$${montoActual.toFixed(2)}`;
+          : `$${montoActual.toFixed(2)} (*${Math.abs(ves).toFixed(2)} VES*)`;
        
        msg = `${icono} *${v.tipo || "Movimiento"} Registrado*\n`;
        msg += `──────────────\n`;
@@ -480,7 +483,7 @@ function repararRegistrosErroneos() {
   const idx = {
     f: findH(["fechatransaccion", "fecha"]),
     tp: findH(["tipomovimiento", "tipo"]),
-    c: findH(["categoria", "cat"]),
+    c: findH(["categoría"]), // Búsqueda exacta para evitar conflicto con marcatemporal
     d: findH(["descripciondetalle", "desc"]),
     m: findH(["metodopago", "metodo"]),
     mt: findH(["monto"]),
@@ -492,14 +495,20 @@ function repararRegistrosErroneos() {
 
   for (let i = 1; i < bdData.length; i++) {
     const row = bdData[i];
-    const isError = row[0] === "#NUM!" || row[9] === 0 || row[7] === "" || String(row[0]).includes("Infinity");
+    // CRITERIO DE ERROR: ID malo, Monto 0, descripción vacía o CATEGORÍA QUE ES FECHA (ISO)
+    const catStr = String(row[6] || "");
+    const catIsFecha = catStr.includes("2026") || catStr.includes("T") || catStr.includes(":") || catStr.includes("Z");
+    const isError = row[0] === "#NUM!" || row[9] === 0 || row[7] === "" || String(row[0]).includes("Infinity") || catIsFecha;
     
     if (isError) {
       // Intentar buscar en el formulario por fecha/timestamp (col 2 en BD es Fecha dd/mm/yyyy)
       const bdFecha = row[1];
       const match = formData.find(fRow => {
-        // Comparación simple por fecha o cercanía si es posible
-        return fRow[idx.f] == bdFecha || (fRow[0] instanceof Date && Utilities.formatDate(fRow[0], "GMT-4", "dd/MM/yyyy") == bdFecha);
+        // Comparación simple por fecha string o por fecha objeto
+        const fCore = fRow[idx.f];
+        const isMatch = fCore == bdFecha || (fCore instanceof Date && Utilities.formatDate(fCore, "GMT-4", "dd/MM/yyyy") == bdFecha);
+        // Si no hay match por fecha perfecta, intentar por ID (que a veces es el timestamp)
+        return isMatch;
       });
 
       if (match) {

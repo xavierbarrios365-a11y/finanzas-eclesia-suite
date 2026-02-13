@@ -71,6 +71,7 @@ const App: React.FC = () => {
   const [isDark, setIsDark] = useState(true);
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const [searchCat, setSearchCat] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("TODAS");
   const [showExchange, setShowExchange] = useState(false);
 
   const [editingRow, setEditingRow] = useState<any | null>(null);
@@ -183,10 +184,10 @@ const App: React.FC = () => {
     const ft = async () => { try { const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial'); const j = await r.json(); if (j.promedio) setTasa(j.promedio); } catch (e) { } };
     ft();
 
-    // MOTOR DE SINCRONIZACIÓN GLOBAL (15s) - Más estable y equilibrado
+    // MOTOR DE SINCRONIZACIÓN GLOBAL (60s) - Estabilidad total solicitado por el usuario
     const interval = setInterval(() => {
       fetchData(true);
-    }, 15000);
+    }, 60000); // 1 minuto exacto
 
     return () => clearInterval(interval);
   }, []);
@@ -283,11 +284,14 @@ const App: React.FC = () => {
 
     const viewFiltered = performanceData.filter(d => {
       const matchesSearch = !searchCat || d.cat.toLowerCase().includes(searchCat.toLowerCase()) || d.desc.toLowerCase().includes(searchCat.toLowerCase());
-      if (!matchesSearch) return false;
+      const matchesCategory = selectedCategory === "TODAS" || d.cat === selectedCategory;
+      if (!matchesSearch || !matchesCategory) return false;
       if (activeTab === 'income') return d.tipo.includes('ingreso');
       if (activeTab === 'expense') return d.tipo.includes('egreso');
       return true;
     });
+
+    const categoryList = Array.from(new Set(data.map(d => d.cat))).sort();
 
     const getP = (tp: string) => {
       const dict: any = {};
@@ -317,13 +321,14 @@ const App: React.FC = () => {
       m: { in: mIn, out: mOut, total: viewFiltered.length, list: viewFiltered.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE) },
       p: { in: getP('ingreso'), out: getP('egreso') },
       trend: trendData,
+      categories: categoryList,
       breakdown
     };
-  }, [data, filtroActivo, tasa, paginaActual, activeTab, searchCat]);
+  }, [data, filtroActivo, tasa, paginaActual, activeTab, searchCat, selectedCategory]);
 
   const pNum = (n: any) => fmt(n);
 
-  useEffect(() => { setPaginaActual(1); }, [activeTab, filtroActivo, searchCat]);
+  useEffect(() => { setPaginaActual(1); }, [activeTab, filtroActivo, searchCat, selectedCategory]);
 
   const handleSyncRate = async () => {
     setSyncing(true);
@@ -533,15 +538,31 @@ const App: React.FC = () => {
           {(activeTab === 'income' || activeTab === 'expense' || activeTab === 'audit') && (
             <div className="animate-in slide-in-from-right-10 duration-500 h-full space-y-4">
 
-              <div className={`${cardClass} rounded-2xl p-4 flex items-center gap-4 border-l-4 ${activeTab === 'income' ? 'border-l-emerald-500' : activeTab === 'expense' ? 'border-l-rose-500' : 'border-l-blue-500'} transition-all`}>
-                <div className="p-2.5 rounded-xl bg-white/5"><Search className="w-4 h-4 text-slate-500" /></div>
-                <input
-                  className={`flex-1 bg-transparent border-none outline-none text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} placeholder:text-slate-600 uppercase tracking-widest`}
-                  placeholder="Buscador inteligente (Concepto o Categoría)..."
-                  value={searchCat}
-                  onChange={(e) => setSearchCat(e.target.value)}
-                />
-                {searchCat && <button onClick={() => setSearchCat("")}><X className="w-4 h-4 text-slate-500 hover:text-white" /></button>}
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className={`${cardClass} flex-1 rounded-2xl p-4 flex items-center gap-4 border-l-4 ${activeTab === 'income' ? 'border-l-emerald-500' : activeTab === 'expense' ? 'border-l-rose-500' : 'border-l-blue-500'} transition-all`}>
+                  <div className="p-2.5 rounded-xl bg-white/5"><Search className="w-4 h-4 text-slate-500" /></div>
+                  <input
+                    className={`flex-1 bg-transparent border-none outline-none text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} placeholder:text-slate-600 uppercase tracking-widest`}
+                    placeholder="Buscador inteligente (Concepto o Categoría)..."
+                    value={searchCat}
+                    onChange={(e) => setSearchCat(e.target.value)}
+                  />
+                  {searchCat && <button onClick={() => setSearchCat("")}><X className="w-4 h-4 text-slate-500 hover:text-white" /></button>}
+                </div>
+
+                <div className={`${cardClass} md:w-64 rounded-2xl p-4 flex items-center gap-4 border-l-4 border-l-blue-500 transition-all`}>
+                  <div className="p-2.5 rounded-xl bg-white/5"><Filter className="w-4 h-4 text-slate-500" /></div>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className={`flex-1 bg-transparent border-none outline-none text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} uppercase tracking-widest appearance-none`}
+                  >
+                    <option value="TODAS" className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>TODAS LAS CATEGORÍAS</option>
+                    {stats.categories.map((c: string) => (
+                      <option key={c} value={c} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>{c.toUpperCase()}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className={`${cardClass} rounded-[2.5rem] overflow-hidden flex flex-col h-full shadow-2xl transition-all`}>
@@ -823,12 +844,41 @@ const SmartPie = ({ title, data, isDark }: any) => (
     <div className="h-[260px] w-full relative">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={data} cx="50%" cy="50%" innerRadius={85} outerRadius={120} paddingAngle={8} dataKey="value">
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={80}
+            outerRadius={110}
+            paddingAngle={8}
+            dataKey="value"
+            label={({ name, percent }) => {
+              // Limpieza quirúrgica: si el nombre parece una fecha, no mostrar.
+              if (name.includes('2026') || name.includes('T') || name.includes(':')) return '';
+              return `${name} (${(percent * 100).toFixed(0)}%)`;
+            }}
+            labelLine={false}
+          >
             {data.map((_: any, i: any) => (<Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />))}
           </Pie>
           <Tooltip
             formatter={(v: any) => [`$ ${fmt(v)}`]}
             contentStyle={{ backgroundColor: isDark ? '#0a0c10' : '#fff', border: 'none', borderRadius: '20px', fontSize: '11px', fontWeight: '900', color: isDark ? '#fff' : '#000', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
+            itemStyle={{ color: isDark ? '#fff' : '#000' }}
+          />
+          <Legend
+            verticalAlign="bottom"
+            height={36}
+            content={({ payload }) => (
+              <div className="flex flex-wrap justify-center gap-4 mt-6">
+                {payload?.map((entry: any, index: number) => (
+                  <div key={`item-${index}`} className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{entry.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           />
         </PieChart>
       </ResponsiveContainer>
