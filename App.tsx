@@ -93,9 +93,10 @@ const App: React.FC = () => {
   const [userName, setUserName] = useState('');
   const [loginError, setLoginError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<'supervisor' | 'admin' | 'vista'>('supervisor');
 
   const DEFAULT_USERS = [
-    { user: 'supervisor', pass: 'jes2026', role: 'supervisor' as const, name: 'Supervisor General' },
+    { user: 'supervisor', pass: '20.Gym..20', role: 'supervisor' as const, name: 'Supervisor General' },
     { user: 'admin', pass: 'admin2026', role: 'admin' as const, name: 'Administrador' },
     { user: 'vista', pass: 'vista2026', role: 'view' as const, name: 'Usuario Vista' },
   ];
@@ -494,9 +495,8 @@ const App: React.FC = () => {
     const handleLogin = (e: React.FormEvent) => {
       e.preventDefault();
       const form = e.target as HTMLFormElement;
-      const u = (form.elements.namedItem('user') as HTMLInputElement).value.trim().toLowerCase();
       const p = (form.elements.namedItem('pass') as HTMLInputElement).value;
-      const match = DEFAULT_USERS.find(x => x.user === u && x.pass === p);
+      const match = DEFAULT_USERS.find(x => x.user === selectedUser && x.pass === p);
       if (match) {
         if (rememberMe) {
           localStorage.setItem('jes_session', JSON.stringify({ role: match.role, name: match.name }));
@@ -506,7 +506,7 @@ const App: React.FC = () => {
         setIsAuthenticated(true);
         setLoginError('');
       } else {
-        setLoginError('Credenciales incorrectas');
+        setLoginError('Contraseña incorrecta');
       }
     };
 
@@ -538,10 +538,15 @@ const App: React.FC = () => {
           </div>
           <form onSubmit={handleLogin} className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-xl shadow-2xl shadow-black/50 space-y-4">
             <div>
-              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Usuario</label>
-              <input name="user" type="text" required autoFocus
-                className="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl text-sm outline-none focus:border-[#2E6061] transition-all font-bold placeholder:text-slate-600"
-                placeholder="Ingrese su usuario" />
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Seleccionar Usuario</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['supervisor', 'admin', 'vista'] as const).map(u => (
+                  <button key={u} type="button" onClick={() => setSelectedUser(u)}
+                    className={`py-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${selectedUser === u ? 'bg-[#2E6061] border-[#2E6061] text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}>
+                    {u}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Contraseña</label>
