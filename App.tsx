@@ -727,7 +727,7 @@ const App: React.FC = () => {
             return (
               <div className="animate-in fade-in slide-in-from-bottom-10 duration-500 print:m-0 print:p-0">
                 <style>{`
-              @page { size: A4; margin: 20mm; }
+              @page { size: A4; margin: 12mm; }
               @media print {
                 nav, .no-print, header, .recharts-wrapper { display: none !important; }
                 html, body { margin: 0 !important; padding: 0 !important; background: white !important; color: #333 !important; }
@@ -760,52 +760,51 @@ const App: React.FC = () => {
                   </button>
                 </div>
                 <div className={`print-report ${cardClass} rounded-2xl`} style={{ fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", overflow: 'visible' }}>
-                  <div className={`px-5 py-3 border-b ${isDark ? 'border-slate-700' : 'border-[#2c3e50]'} flex justify-between items-center`}>
-                    <div className="flex items-center gap-3">
-                      <img src={LOGO_URL} className="w-10 h-10 object-contain" alt="Logo JES" />
+                  <div className={`px-4 py-1.5 border-b ${isDark ? 'border-slate-700' : 'border-[#2c3e50]'} flex justify-between items-center`}>
+                    <div className="flex items-center gap-2">
+                      <img src={LOGO_URL} className="w-7 h-7 object-contain" alt="Logo JES" />
                       <div>
-                        <h1 className={`text-[13px] font-bold uppercase leading-tight ${isDark ? 'text-white' : 'text-[#2c3e50]'}`}>Informe de GestiÃ³n de Recursos</h1>
-                        <p className={`text-[9px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>AdministraciÃ³n y Finanzas</p>
+                        <h1 className={`text-[12px] font-bold uppercase leading-tight ${isDark ? 'text-white' : 'text-[#2c3e50]'}`}>Informe de GestiÃ³n de Recursos</h1>
+                        <p className={`text-[8px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>AdministraciÃ³n y Finanzas</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><strong>Periodo:</strong> {filtroActivo === "ANUAL" ? "Ene - Dic 2026" : filtroActivo.toUpperCase() + " 2026"}</p>
-                      <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><strong>Generado:</strong> {new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    <p className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><strong>Periodo:</strong> {filtroActivo === "ANUAL" ? "Ene - Dic 2026" : filtroActivo.toUpperCase() + " 2026"} | <strong>Generado:</strong> {new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                  </div>
+                  <div className="px-4 py-2">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
+                      <div className={`print-summary income p-2 rounded-lg text-center border ${isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-[#e8f5e9] border-[#c8e6c9]'}`}>
+                        <h3 className={`text-[7px] font-bold uppercase mb-0.5 ${isDark ? 'text-emerald-400' : 'text-slate-500'}`}>Total Ingresos</h3>
+                        <div className={`text-base font-bold ${isDark ? 'text-emerald-400' : 'text-[#2e7d32]'}`}>$ {fmt(stats.m.in)}</div>
+                      </div>
+                      <div className={`print-summary expense p-2 rounded-lg text-center border ${isDark ? 'bg-rose-500/10 border-rose-500/20' : 'bg-[#ffebee] border-[#ffcdd2]'}`}>
+                        <h3 className={`text-[7px] font-bold uppercase mb-0.5 ${isDark ? 'text-rose-400' : 'text-slate-500'}`}>Total Egresos</h3>
+                        <div className={`text-base font-bold ${isDark ? 'text-rose-400' : 'text-[#c62828]'}`}>$ {fmt(stats.m.out)}</div>
+                      </div>
+                      <div className={`print-summary balance p-2 rounded-lg text-center border ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-[#e3f2fd] border-[#bbdefb]'}`}>
+                        <h3 className={`text-[7px] font-bold uppercase mb-0.5 ${isDark ? 'text-blue-400' : 'text-slate-500'}`}>Balance Neto</h3>
+                        <div className={`text-base font-bold ${isDark ? 'text-blue-400' : 'text-[#1565c0]'}`}>$ {fmt(stats.m.in - stats.m.out)}</div>
+                      </div>
+                    </div>
+                    <div className={`grid grid-cols-4 gap-2 mb-1.5 p-2 rounded-lg border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                      <div className="text-[9px]">
+                        <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">USD In/Out</p>
+                        <span className="font-mono font-bold">${fmt(stats.breakdown.in.usd)} / ${fmt(stats.breakdown.out.usd)}</span>
+                      </div>
+                      <div className="text-[9px]">
+                        <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">VES In/Out</p>
+                        <span className="font-mono font-bold">Bs.{fmt(stats.breakdown.in.ves)} / {fmt(stats.breakdown.out.ves)}</span>
+                      </div>
+                      <div className="text-[9px]">
+                        <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">Efectivo In/Out</p>
+                        <span className="font-mono font-bold">${fmt(stats.breakdown.in.cash)} / ${fmt(stats.breakdown.out.cash)}</span>
+                      </div>
+                      <div className="text-[9px]">
+                        <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">Banco In/Out</p>
+                        <span className="font-mono font-bold">${fmt(stats.breakdown.in.bank)} / ${fmt(stats.breakdown.out.bank)}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="px-5 py-3">
-                    <div className="grid grid-cols-3 gap-3 mb-3">
-                      <div className={`print-summary income p-3 rounded-lg text-center border ${isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-[#e8f5e9] border-[#c8e6c9]'}`}>
-                        <h3 className={`text-[8px] font-bold uppercase mb-1 ${isDark ? 'text-emerald-400' : 'text-slate-500'}`}>Total Ingresos</h3>
-                        <div className={`text-lg font-bold ${isDark ? 'text-emerald-400' : 'text-[#2e7d32]'}`}>$ {fmt(stats.m.in)}</div>
-                      </div>
-                      <div className={`print-summary expense p-3 rounded-lg text-center border ${isDark ? 'bg-rose-500/10 border-rose-500/20' : 'bg-[#ffebee] border-[#ffcdd2]'}`}>
-                        <h3 className={`text-[8px] font-bold uppercase mb-1 ${isDark ? 'text-rose-400' : 'text-slate-500'}`}>Total Egresos</h3>
-                        <div className={`text-lg font-bold ${isDark ? 'text-rose-400' : 'text-[#c62828]'}`}>$ {fmt(stats.m.out)}</div>
-                      </div>
-                      <div className={`print-summary balance p-3 rounded-lg text-center border ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-[#e3f2fd] border-[#bbdefb]'}`}>
-                        <h3 className={`text-[8px] font-bold uppercase mb-1 ${isDark ? 'text-blue-400' : 'text-slate-500'}`}>Balance Neto</h3>
-                        <div className={`text-lg font-bold ${isDark ? 'text-blue-400' : 'text-[#1565c0]'}`}>$ {fmt(stats.m.in - stats.m.out)}</div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-2">
-                      <div className={`p-3 rounded-lg border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                        <p className="text-[8px] font-bold text-slate-500 uppercase mb-1.5">Por Moneda</p>
-                        <div className="space-y-1 text-[10px]">
-                          <div className="flex justify-between"><span className="opacity-60">USD</span><span className="font-mono font-bold">In: ${fmt(stats.breakdown.in.usd)} / Out: ${fmt(stats.breakdown.out.usd)}</span></div>
-                          <div className="flex justify-between"><span className="opacity-60">VES</span><span className="font-mono font-bold">In: Bs.{fmt(stats.breakdown.in.ves)} / Out: Bs.{fmt(stats.breakdown.out.ves)}</span></div>
-                        </div>
-                      </div>
-                      <div className={`p-3 rounded-lg border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                        <p className="text-[8px] font-bold text-slate-500 uppercase mb-1.5">Por MÃ©todo</p>
-                        <div className="space-y-1 text-[10px]">
-                          <div className="flex justify-between"><span className="opacity-60">Efectivo</span><span className="font-mono font-bold">In: ${fmt(stats.breakdown.in.cash)} / Out: ${fmt(stats.breakdown.out.cash)}</span></div>
-                          <div className="flex justify-between"><span className="opacity-60">Banco / MÃ³vil</span><span className="font-mono font-bold">In: ${fmt(stats.breakdown.in.bank)} / Out: ${fmt(stats.breakdown.out.bank)}</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="px-5 pb-2">
+                  <div className="px-4 pb-1">
                     <div className="flex justify-between items-center mb-2">
                       <h2 className={`text-[11px] font-bold pl-2 border-l-2 ${isDark ? 'text-white border-slate-500' : 'text-[#2c3e50] border-[#2c3e50]'}`}>Detalle de Movimientos ({allFiltered.length})</h2>
                       {totalTablePages > 1 && (
@@ -831,12 +830,12 @@ const App: React.FC = () => {
                         {visibleRows.map((r: any, i: number) => {
                           const m = getMult(r); const inc = m > 0; const gi = (cPage - 1) * REPORT_TABLE_SIZE + i; return (
                             <tr key={gi} className={`border-b ${isDark ? 'border-white/5' : 'border-slate-200'} ${gi % 2 === 1 ? (isDark ? 'bg-white/[0.02]' : 'bg-[#f9f9f9]') : ''}`}>
-                              <td className={`px-2 py-1.5 text-[10px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{r.fecha}</td>
-                              <td className={`px-2 py-1.5 text-[10px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{r.desc || r.cat}</td>
-                              <td className={`px-2 py-1.5 text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{r.cat}</td>
-                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono ${inc ? 'text-emerald-600 font-semibold' : ''}`}>{inc ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
-                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono ${!inc && m !== 0 ? 'text-rose-600 font-semibold' : ''}`}>{!inc && m !== 0 ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
-                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>${fmt(r.usd)}</td>
+                              <td className={`px-1.5 py-1 text-[9px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{r.fecha}</td>
+                              <td className={`px-1.5 py-1 text-[9px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{r.desc || r.cat}</td>
+                              <td className={`px-1.5 py-1 text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{r.cat}</td>
+                              <td className={`px-1.5 py-1 text-[9px] text-right font-mono ${inc ? 'text-emerald-600 font-semibold' : ''}`}>{inc ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
+                              <td className={`px-1.5 py-1 text-[9px] text-right font-mono ${!inc && m !== 0 ? 'text-rose-600 font-semibold' : ''}`}>{!inc && m !== 0 ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
+                              <td className={`px-1.5 py-1 text-[9px] text-right font-mono font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>${fmt(r.usd)}</td>
                             </tr>);
                         })}
                       </tbody>
@@ -844,48 +843,48 @@ const App: React.FC = () => {
                         {allFiltered.map((r: any, i: number) => {
                           const m = getMult(r); const inc = m > 0; return (
                             <tr key={i} className={`border-b border-slate-200 ${i % 2 === 1 ? 'bg-[#f9f9f9]' : ''}`}>
-                              <td className="px-2 py-1.5 text-[10px] text-slate-700">{r.fecha}</td>
-                              <td className="px-2 py-1.5 text-[10px] text-slate-800">{r.desc || r.cat}</td>
-                              <td className="px-2 py-1.5 text-[10px] text-slate-600">{r.cat}</td>
-                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono ${inc ? 'text-emerald-600 font-semibold' : ''}`}>{inc ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
-                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono ${!inc && m !== 0 ? 'text-rose-600 font-semibold' : ''}`}>{!inc && m !== 0 ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
-                              <td className="px-2 py-1.5 text-[10px] text-right font-mono font-bold text-slate-700">${fmt(r.usd)}</td>
+                              <td className="px-1.5 py-1 text-[9px] text-slate-700">{r.fecha}</td>
+                              <td className="px-1.5 py-1 text-[9px] text-slate-800">{r.desc || r.cat}</td>
+                              <td className="px-1.5 py-1 text-[9px] text-slate-600">{r.cat}</td>
+                              <td className={`px-1.5 py-1 text-[9px] text-right font-mono ${inc ? 'text-emerald-600 font-semibold' : ''}`}>{inc ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
+                              <td className={`px-1.5 py-1 text-[9px] text-right font-mono ${!inc && m !== 0 ? 'text-rose-600 font-semibold' : ''}`}>{!inc && m !== 0 ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
+                              <td className="px-1.5 py-1 text-[9px] text-right font-mono font-bold text-slate-700">${fmt(r.usd)}</td>
                             </tr>);
                         })}
                       </tbody>
                       <tfoot>
                         <tr className={`font-bold border-t-2 ${isDark ? 'border-slate-600 bg-white/5' : 'border-[#2c3e50] bg-slate-100'}`}>
-                          <td colSpan={3} className="px-2 py-2 text-right text-[10px] uppercase tracking-wider">Totales:</td>
-                          <td className="px-2 py-2 text-right text-[10px] font-mono text-emerald-600">$ {fmt(stats.m.in)}</td>
-                          <td className="px-2 py-2 text-right text-[10px] font-mono text-rose-600">$ {fmt(stats.m.out)}</td>
-                          <td className="px-2 py-2 text-right text-[10px] font-mono font-black">$ {fmt(stats.m.in - stats.m.out)}</td>
+                          <td colSpan={3} className="px-1.5 py-1 text-right text-[9px] uppercase tracking-wider">Totales:</td>
+                          <td className="px-1.5 py-1 text-right text-[9px] font-mono text-emerald-600">$ {fmt(stats.m.in)}</td>
+                          <td className="px-1.5 py-1 text-right text-[9px] font-mono text-rose-600">$ {fmt(stats.m.out)}</td>
+                          <td className="px-1.5 py-1 text-right text-[9px] font-mono font-black">$ {fmt(stats.m.in - stats.m.out)}</td>
                         </tr>
                       </tfoot>
                     </table>
                   </div>
-                  <div className="px-5 py-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0' }}>
-                    <div className={`p-3 rounded-lg border mb-3 ${isDark ? 'bg-white/5 border-white/10' : 'bg-[#fafafa] border-slate-200'}`}>
-                      <p className={`text-[10px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        <strong>Nota de GestiÃ³n:</strong> {stats.m.in > stats.m.out
-                          ? `SuperÃ¡vit de $${fmt(stats.m.in - stats.m.out)}. Se recomienda reservar un porcentaje para el fondo de contingencias.`
-                          : `DÃ©ficit de $${fmt(stats.m.out - stats.m.in)}. Revisar gastos operativos y evaluar fuentes adicionales de ingreso.`}
+                  <div className="px-4 py-2 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0' }}>
+                    <div className={`p-2 rounded-lg border mb-2 ${isDark ? 'bg-white/5 border-white/10' : 'bg-[#fafafa] border-slate-200'}`}>
+                      <p className={`text-[9px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        <strong>Nota:</strong> {stats.m.in > stats.m.out
+                          ? `SuperÃ¡vit de $${fmt(stats.m.in - stats.m.out)}. Se recomienda reservar un porcentaje para contingencias.`
+                          : `DÃ©ficit de $${fmt(stats.m.out - stats.m.in)}. Revisar gastos operativos y evaluar fuentes adicionales.`}
                       </p>
                     </div>
-                    <div className="print-signatures flex justify-between pt-2">
+                    <div className="print-signatures flex justify-between pt-1">
                       <div className="w-[40%] text-center">
-                        <p className={`text-[10px] font-bold mb-10 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Elaborado por:</p>
-                        <div className={`border-t ${isDark ? 'border-slate-600' : 'border-slate-400'} mx-auto w-40`}></div>
-                        <p className={`text-[9px] mt-1 text-slate-500`}>Firma y Sello</p>
+                        <p className={`text-[9px] font-bold mb-6 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Elaborado por:</p>
+                        <div className={`border-t ${isDark ? 'border-slate-600' : 'border-slate-400'} mx-auto w-36`}></div>
+                        <p className={`text-[8px] mt-0.5 text-slate-500`}>Firma y Sello</p>
                       </div>
                       <div className="w-[40%] text-center">
-                        <p className={`text-[10px] font-bold mb-10 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Aprobado por:</p>
-                        <div className={`border-t ${isDark ? 'border-slate-600' : 'border-slate-400'} mx-auto w-40`}></div>
-                        <p className={`text-[9px] mt-1 text-slate-500`}>DirecciÃ³n General</p>
+                        <p className={`text-[9px] font-bold mb-6 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Aprobado por:</p>
+                        <div className={`border-t ${isDark ? 'border-slate-600' : 'border-slate-400'} mx-auto w-36`}></div>
+                        <p className={`text-[8px] mt-0.5 text-slate-500`}>DirecciÃ³n General</p>
                       </div>
                     </div>
-                    <div className={`mt-3 pt-2 text-center border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-                      <p className={`text-[8px] ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-                        Informe generado el {new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} | Finanzas JES Suite
+                    <div className={`mt-2 pt-1 text-center border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                      <p className={`text-[7px] ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                        Generado el {new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} | Finanzas JES Suite
                       </p>
                     </div>
                   </div>
