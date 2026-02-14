@@ -43,10 +43,7 @@ const PARSE_NUM = (v: any) => {
     if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
     else s = s.replace(/,/g, "");
   } else if (s.includes(",")) s = s.replace(",", ".");
-  let n = parseFloat(s) || 0;
-  // Sanity check for Tasa (BCV usually around 40, shifted decimals are common in parsing)
-  if (n > 200 && n < 500) n = n / 10;
-  return n;
+  return parseFloat(s) || 0;
 };
 
 const fmt = (v: any) => {
@@ -141,17 +138,14 @@ const App: React.FC = () => {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         // Unified Precision Parser v5.0
-        const pNum = (v: any, isTasa = false) => {
+        const pNum = (v: any) => {
           if (typeof v === 'number') return v;
           let s = String(v || "0").replace(/[^\d,.-]/g, "").trim();
           if (s.includes(",") && s.includes(".")) {
             if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
             else s = s.replace(/,/g, "");
           } else if (s.includes(",")) s = s.replace(",", ".");
-          let n = parseFloat(s) || 0;
-          // Tasa Sanity Check (BCV shift decoder)
-          if (isTasa && n > 200 && n < 500) n = n / 10;
-          return n;
+          return parseFloat(s) || 0;
         };
 
         let hIdx = json.data.findIndex((r: any[]) => r.some(c => String(c || "").toLowerCase().includes("id")));
@@ -191,11 +185,11 @@ const App: React.FC = () => {
           .map((r: any[]) => {
             const fRaw = String(r[col.fecha] || "").split('T')[0];
             const mRaw = String(r[col.mon] || "").toUpperCase();
-            const isUSD = mRaw.includes("USD") || mRaw.includes("$") || mRaw.includes("DIVISA") || mRaw.includes("EFECTIVO");
+            const isUSD = mRaw.includes("USD") || mRaw.includes("$") || mRaw.includes("DIVISA") || mRaw.includes("DOLAR");
 
             // Precision mapping: use unified parser for absolute values
             const m_orig = Math.abs(pNum(r[col.m]));
-            const t_reg = pNum(r[col.t], true) || tasa;
+            const t_reg = pNum(r[col.t]) || tasa;
             let v_usd = Math.abs(pNum(r[col.usd]));
             let v_ves = Math.abs(pNum(r[col.ves]));
 
@@ -233,15 +227,12 @@ const App: React.FC = () => {
     const handleSyncRate = async () => {
       setSyncing(true);
       try {
-        // External Sync (DolarAPI)
         const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
         const j = await r.json();
-        if (j.promedio) {
-          let t = j.promedio;
-          if (t > 200) t = t / 10;
+        let t = j.promedio || 0;
+        if (t > 0) {
           setTasa(t);
         } else {
-          // Internal Sync (Spreadsheet)
           const res = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -249,17 +240,11 @@ const App: React.FC = () => {
           });
           const json = await res.json();
           if (json.success && json.tasa) {
-            let t = json.tasa;
-            if (t > 200) t = t / 10;
-            setTasa(t);
+            setTasa(json.tasa);
             fetchData(true);
           }
         }
-      } catch (e) {
-        console.error("Sync error", e);
-      } finally {
-        setSyncing(false);
-      }
+      } catch (e) { } finally { setSyncing(false); }
     };
     handleSyncRate();
 
@@ -285,11 +270,15 @@ const App: React.FC = () => {
       return dMonthIdx >= 1 && isCorrectYear;
     });
     const getMult = (d: any) => {
-      const all = String((d.tipo || "") + (d.cat || "") + (d.desc || "")).toLowerCase();
-      // Motor de detección robusto v15.1
-      if (/ingreso|abono|entrada|inicial|diezmo|ofrenda|aporte|venta/i.test(all)) return 1;
-      if (/egreso|salida|gasto|pago|comision|compra|transfer/i.test(all)) return -1;
-      return 0; // Failsafe para no contaminar balances con basura
+      // Motor de detección v16.0 - PRIORIDAD: campo "tipo" del backend
+      const tipo = String(d.tipo || "").toLowerCase();
+      if (/ingreso|entrada/i.test(tipo)) return 1;
+      if (/egreso|salida|gasto/i.test(tipo)) return -1;
+      // Fallback: revisar categoría y descripción (NO método, para evitar falsos positivos con 'Pago Móvil')
+      const catDesc = String((d.cat || "") + (d.desc || "")).toLowerCase();
+      if (/diezmo|ofrenda|aporte|abono|venta|donacion/i.test(catDesc)) return 1;
+      if (/comision|compra/i.test(catDesc)) return -1;
+      return 0;
     };
 
     // PERFORMANCE DATA: Restricted to selected period
@@ -300,26 +289,35 @@ const App: React.FC = () => {
       performanceData = validData.filter(d => d.mes === filtroActivo);
     }
 
-    // KPI DATA: ALWAYS Lifetime/Global for real-time balances (Ignoring period filters)
-    // This ensures "Caja" shows the current actual bank balance.
-    const kpiData = data;
+    // KPI DATA: Filtered to CURRENT YEAR ONLY (2026) to avoid historical inflation
+    const kpiData = validData;
 
-    // Calibración de Liquidez v15.0 (Real-Time Precision)
+    // Calibración de Liquidez v16.0 (Mapeo Estricto Backend)
     let u = 0, vc = 0, vb = 0, dev = 0, o = 0;
     kpiData.forEach(d => {
       const mult = getMult(d);
       if (mult === 0) return;
 
-      const met = (d.met || "").toLowerCase();
+      const met = String(d.met || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const mon = (d.mon_orig || "VES").toUpperCase();
       const isUSD = mon.includes('USD') || mon.includes('$');
       const isCash = met.includes('efectivo') || met.includes('cash') || met.includes('caja');
+      const isPagoMovil = met.includes('pago movil') || met.includes('pago móvil');
 
       o += d.usd * mult;
       if (isUSD) {
-        u += d.usd * mult;
+        // Caja Divisa: solo efectivo USD físico
+        if (isCash) u += d.usd * mult;
+        // USD no-efectivo (Zelle, etc) también suma al total operativo pero no a caja física
+        // o ya lo acumula arriba
       } else {
-        if (isCash) vc += d.ves * mult; else vb += d.ves * mult;
+        // VES: separar estrictamente Efectivo vs Pago Móvil
+        if (isCash) {
+          vc += d.ves * mult;
+        } else if (isPagoMovil) {
+          vb += d.ves * mult;
+        }
+        // Transferencias genéricas NO suman a ningún tile de liquidez
         const tr = d.t_reg > 1 ? d.t_reg : tasa;
         dev += ((d.ves / tr) - (d.ves / tasa)) * mult;
       }
@@ -408,31 +406,31 @@ const App: React.FC = () => {
 
   useEffect(() => { setPaginaActual(1); }, [activeTab, filtroActivo, searchCat, selectedCategory]);
 
-  const handleSyncRate = async () => {
-    setSyncing(true);
-    try {
-      const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-      const j = await r.json();
-      let t = j.promedio || 0;
-      if (t > 200) t = t / 10;
-      if (t > 0) {
-        setTasa(t);
-        return;
-      }
-      // Fallback a Google Sheets
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: "updateRate" })
-      });
-      const json = await res.json();
-      if (json.success && json.tasa) {
-        let ts = json.tasa;
-        if (ts > 200) ts = ts / 10;
-        setTasa(ts);
-        fetchData(true);
-      }
-    } catch (e) { } finally { setSyncing(false); }
+  // Consolidamos handleSyncRate como función accesible
+  const handleRateSyncBtn = () => {
+    const fn = async () => {
+      setSyncing(true);
+      try {
+        const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+        const j = await r.json();
+        let t = j.promedio || 0;
+        if (t > 0) {
+          setTasa(t);
+          return;
+        }
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: "updateRate" })
+        });
+        const json = await res.json();
+        if (json.success && json.tasa) {
+          setTasa(json.tasa);
+          fetchData(true);
+        }
+      } catch (e) { } finally { setSyncing(false); }
+    };
+    fn();
   };
 
   const handleEdit = (r: any) => { setEditingRow({ ...r }); setIsEditModalOpen(true); };
@@ -458,9 +456,9 @@ const App: React.FC = () => {
 
   if (loading) return (
     <div className={`min-h-screen ${themeClass} flex items-center justify-center`}>
-      <div className="text-center animate-pulse">
-        <img src={LOGO_URL} className="w-20 h-20 mx-auto mb-6 object-contain" alt="Iglesia JES" />
-        <p className="font-black uppercase tracking-[0.3em] text-[10px] opacity-50" style={{ color: BRAND.primary }}>Finanzas JES Suite</p>
+      <div className="text-center animate-pulse px-10">
+        <img src={LOGO_URL} className="w-16 h-16 md:w-20 md:h-20 mx-auto mb-6 object-contain" alt="Iglesia JES" />
+        <p className="font-black uppercase tracking-[0.3em] text-[9px] md:text-[10px] opacity-50" style={{ color: BRAND.primary }}>Finanzas JES Suite</p>
       </div>
     </div>
   );
@@ -501,50 +499,44 @@ const App: React.FC = () => {
       <main className={`flex-1 ${activeTab === 'dash' ? 'h-screen overflow-hidden' : 'h-screen overflow-y-auto'} pb-24 md:pb-0`}>
 
         {/* UPPER HEADER */}
-        <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#020306]/90' : 'bg-[#f8fafc]/90'} backdrop-blur-xl border-b ${isDark ? 'border-white/5' : 'border-slate-200'} p-4 md:px-8 flex flex-col lg:flex-row justify-between items-center gap-4 h-auto lg:h-20`}>
-          <div className="flex items-center gap-3 w-full lg:w-auto">
-            <Calendar className="w-5 h-5 shadow-lg" style={{ color: BRAND.primary }} />
+        <header className={`h-16 md:h-24 px-4 md:px-8 flex items-center justify-between border-b ${isDark ? 'border-white/5 bg-black/20' : 'border-slate-200 bg-white'} sticky top-0 z-40 backdrop-blur-md`}>
+          <div className="flex items-center gap-2 md:gap-4 truncate">
+            <div className={`p-2 rounded-xl ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
+              <Calendar className="w-4 h-4 md:w-5 md:h-5 text-slate-500" />
+            </div>
             <select
               value={filtroActivo}
               onChange={(e) => setFiltroActivo(e.target.value)}
-              className={`flex-1 lg:w-48 h-10 px-4 rounded-xl text-[10px] font-black uppercase outline-none border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white focus:border-blue-500' : 'bg-white border-slate-200 text-slate-900 focus:border-blue-500 shadow-sm'}`}
+              className={`bg-transparent text-[10px] md:text-xs font-black uppercase tracking-widest outline-none cursor-pointer hover:opacity-70 transition-all ${isDark ? 'text-white' : 'text-slate-900'} max-w-[120px] md:max-w-none`}
             >
-              {ALL_MONTHS.map(m => (
-                <option key={m.id} value={m.id} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>
-                  {m.name}
-                </option>
-              ))}
+              {ALL_MONTHS.map(m => <option key={m.id} value={m.id} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>{m.name}</option>)}
             </select>
           </div>
-          <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
-            <div className={`flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'} px-5 h-10 rounded-xl border transition-all shadow-sm`}>
+
+          <div className="flex items-center gap-2 md:gap-4 ml-auto">
+            <div className={`hidden sm:flex items-center px-4 py-2 rounded-xl border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'} gap-3`}>
               <span className="text-[8px] font-black text-slate-500 uppercase">Tasa BCV</span>
               <span className={`text-[11px] font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{tasa.toFixed(2)}</span>
               <button
-                onClick={handleSyncRate}
+                onClick={handleRateSyncBtn}
                 disabled={syncing}
                 title="Sincronizar Tasa"
-                className={`ml-2 p-1.5 rounded-lg transition-all ${isDark ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'} ${syncing ? 'animate-spin' : ''}`}
+                className={`ml-1 p-1 rounded-lg transition-all ${isDark ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'} ${syncing ? 'animate-spin' : ''}`}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
-            <button onClick={() => setShowExchange(true)} className="flex-1 lg:flex-none text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:scale-105 shadow-lg" style={{ backgroundColor: BRAND.accent }}>
-              <RefreshCw className="w-4 h-4" /> Intercambio
-            </button>
-            <button onClick={() => window.open(FORM_URL, '_blank')} className="flex-1 lg:flex-none text-white px-5 h-10 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 transition-all hover:scale-105 shadow-lg" style={{ backgroundColor: BRAND.primary }}>
-              <PlusCircle className="w-4 h-4" /> Nuevo Ingreso/Egreso
-            </button>
-            <div className={`hidden sm:flex items-center gap-3 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-slate-200'} px-5 py-2 rounded-xl border`}>
-              <span className="text-[8px] font-black text-slate-500 uppercase">Estado</span>
-              <div className="flex items-center gap-2">
-                <div className={`w-1.5 h-1.5 rounded-full ${syncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                <span className={`text-[10px] font-black uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>{syncing ? 'Actualizando' : 'Premium'}</span>
-              </div>
+            <div className="flex items-center gap-1.5 md:gap-3">
+              <button onClick={() => setShowExchange(true)} className="flex items-center justify-center w-9 h-9 md:w-auto md:px-4 md:h-11 rounded-xl text-white transition-all hover:scale-105 shadow-lg active:scale-95" style={{ backgroundColor: BRAND.accent }}>
+                <RefreshCw className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Intercambio</span>
+              </button>
+              <button onClick={() => window.open(FORM_URL, '_blank')} className="flex items-center justify-center w-9 h-9 md:w-auto md:px-4 md:h-11 rounded-xl text-white transition-all hover:scale-105 shadow-xl active:scale-95" style={{ backgroundColor: BRAND.primary }}>
+                <PlusCircle className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Nuevo Asiento</span>
+              </button>
+              <button onClick={() => fetchData(true)} className={`w-9 h-9 md:w-11 md:h-11 flex items-center justify-center rounded-xl border ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'} transition-all ${syncing ? 'animate-spin' : ''}`}>
+                <RefreshCw className="w-4 h-4 opacity-50" />
+              </button>
             </div>
-            <button onClick={() => fetchData()} disabled={syncing} className={`flex items-center justify-center p-3 rounded-xl border transition-all ${isDark ? 'bg-white/5 border-white/5 text-slate-500' : 'bg-white border-slate-200 text-slate-400'}`}>
-              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            </button>
           </div>
         </header>
 
@@ -574,7 +566,7 @@ const App: React.FC = () => {
                       <span className="flex items-center gap-2" style={{ color: BRAND.accent }}><div className="w-2 h-2 rounded-full" style={{ backgroundColor: BRAND.accent }} /> Flujo</span>
                     </div>
                   </div>
-                  <div className="w-full relative h-[250px] mt-4">
+                  <div className="w-full relative h-[180px] md:h-[250px] mt-4">
                     {stats.trend.length === 0 || stats.trend.every((pt: any) => pt.in === 0 && pt.out === 0) ? (
                       <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
                         <Bug className="w-10 h-10 mb-2" style={{ color: BRAND.primary }} />
@@ -879,16 +871,18 @@ const App: React.FC = () => {
           }
         </div>
       </main >
-      {showExchange && (
-        <ExchangeModal
-          isOpen={showExchange}
-          onClose={() => setShowExchange(false)}
-          currentTasa={tasa}
-          onExchange={fetchData}
-          stats={stats}
-          isDark={isDark}
-        />
-      )}
+      {
+        showExchange && (
+          <ExchangeModal
+            isOpen={showExchange}
+            onClose={() => setShowExchange(false)}
+            currentTasa={tasa}
+            onExchange={fetchData}
+            stats={stats}
+            isDark={isDark}
+          />
+        )
+      }
     </div >
   );
 };
@@ -926,10 +920,10 @@ const KpiTile = ({ label, val, sub, icon, c, isDark }: any) => {
         <div className={`p-2 rounded-lg bg-gradient-to-br ${g[c] || g.jes} text-white shadow-lg shrink-0`}>
           {React.cloneElement(icon, { size: 14, strokeWidth: 3 })}
         </div>
-        <div className="min-w-0">
-          <p className="text-[7px] font-black uppercase tracking-widest text-slate-500 truncate">{label}</p>
-          <h4 className={`text-[13px] font-black tracking-tighter leading-none ${isDark ? 'text-white' : 'text-slate-900'} truncate`}>{val}</h4>
-          {sub && <p className="text-[8px] font-bold text-slate-500/60 truncate mt-0.5">{sub}</p>}
+        <div className="min-w-0 flex-1">
+          <p className="text-[7px] md:text-[8px] font-black uppercase tracking-widest text-slate-500 truncate mb-1">{label}</p>
+          <h4 className={`text-[12px] md:text-[14px] font-black tracking-tighter leading-none ${isDark ? 'text-white' : 'text-slate-900'} truncate`}>{val}</h4>
+          {sub && <p className="text-[7.5px] font-bold text-slate-500/60 truncate mt-1">{sub}</p>}
         </div>
       </div>
     </div>
