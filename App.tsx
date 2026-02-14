@@ -97,7 +97,7 @@ const App: React.FC = () => {
 
   const DEFAULT_USERS = [
     { user: 'supervisor', pass: '20.Gym..20', role: 'supervisor' as const, name: 'Supervisor General' },
-    { user: 'admin', pass: 'admin2026', role: 'admin' as const, name: 'Administrador' },
+    { user: 'admin', pass: '9562664', role: 'admin' as const, name: 'Administrador' },
     { user: 'vista', pass: 'vista2026', role: 'view' as const, name: 'Usuario Vista' },
   ];
   const canEdit = userRole === 'supervisor';
