@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -33,7 +33,7 @@ const BANK_CONFIG = {
   phone: "04126856037",
   id: "9562664",
   code: "0105",
-  note: "Envía capture al número telefónico"
+  note: "EnvÃ­a capture al nÃºmero telefÃ³nico"
 };
 
 const PARSE_NUM = (v: any) => {
@@ -74,7 +74,7 @@ const App: React.FC = () => {
   const [tasa, setTasa] = useState<number>(36.50);
   const [filtroActivo, setFiltroActivo] = useState<string>("ANUAL");
   const [activeTab, setActiveTab] = useState<'dash' | 'income' | 'expense' | 'audit' | 'bank' | 'reports'>('dash');
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const [searchCat, setSearchCat] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("TODAS");
@@ -82,15 +82,14 @@ const App: React.FC = () => {
 
   const [editingRow, setEditingRow] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [reportPage, setReportPage] = useState(1);
+  const REPORT_TABLE_SIZE = 10;
 
   const PAGE_SIZE = 12;
 
+  // El usuario solicitÃ³ Modo Claro por defecto siempre
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    setIsDark(mq.matches);
-    const handler = (e: any) => setIsDark(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+    setIsDark(false);
   }, []);
 
   const normalizeMonth = (val: any, fecha?: string) => {
@@ -130,7 +129,7 @@ const App: React.FC = () => {
   };
 
   const fetchData = async (quiet = false) => {
-    if (syncing) return; // Protección contra solapamiento
+    if (syncing) return; // ProtecciÃ³n contra solapamiento
     if (!quiet) setLoading(true);
     setSyncing(true);
     try {
@@ -165,8 +164,8 @@ const App: React.FC = () => {
           id: f("id"),
           mes: f("mes"),
           tipo: f("tipo"),
-          cat: f("cat", "categoría"),
-          desc: f("desc", "concepto", "descripción"),
+          cat: f("cat", "categorÃ­a"),
+          desc: f("desc", "concepto", "descripciÃ³n"),
           met: f("metodo", "met"),
           m: f("monto orig", "monto", "mnt"),
           mon: f("moneda", "cur"),
@@ -248,7 +247,7 @@ const App: React.FC = () => {
     };
     handleSyncRate();
 
-    // MOTOR DE SINCRONIZACIÓN GLOBAL (60s) - Estabilidad total solicitado por el usuario
+    // MOTOR DE SINCRONIZACIÃ“N GLOBAL (60s) - Estabilidad total solicitado por el usuario
     const interval = setInterval(() => {
       fetchData(true);
     }, 60000); // 1 minuto exacto
@@ -270,11 +269,11 @@ const App: React.FC = () => {
       return dMonthIdx >= 1 && isCorrectYear;
     });
     const getMult = (d: any) => {
-      // Motor de detección v16.0 - PRIORIDAD: campo "tipo" del backend
+      // Motor de detecciÃ³n v16.0 - PRIORIDAD: campo "tipo" del backend
       const tipo = String(d.tipo || "").toLowerCase();
       if (/ingreso|entrada/i.test(tipo)) return 1;
       if (/egreso|salida|gasto/i.test(tipo)) return -1;
-      // Fallback: revisar categoría y descripción (NO método, para evitar falsos positivos con 'Pago Móvil')
+      // Fallback: revisar categorÃ­a y descripciÃ³n (NO mÃ©todo, para evitar falsos positivos con 'Pago MÃ³vil')
       const catDesc = String((d.cat || "") + (d.desc || "")).toLowerCase();
       if (/diezmo|ofrenda|aporte|abono|venta|donacion/i.test(catDesc)) return 1;
       if (/comision|compra/i.test(catDesc)) return -1;
@@ -292,7 +291,7 @@ const App: React.FC = () => {
     // KPI DATA: Filtered to CURRENT YEAR ONLY (2026) to avoid historical inflation
     const kpiData = validData;
 
-    // Calibración de Liquidez v16.0 (Mapeo Estricto Backend)
+    // CalibraciÃ³n de Liquidez v16.0 (Mapeo Estricto Backend)
     let u = 0, vc = 0, vb = 0, dev = 0, o = 0;
     kpiData.forEach(d => {
       const mult = getMult(d);
@@ -302,22 +301,22 @@ const App: React.FC = () => {
       const mon = (d.mon_orig || "VES").toUpperCase();
       const isUSD = mon.includes('USD') || mon.includes('$');
       const isCash = met.includes('efectivo') || met.includes('cash') || met.includes('caja');
-      const isPagoMovil = met.includes('pago movil') || met.includes('pago móvil');
+      const isPagoMovil = met.includes('pago movil') || met.includes('pago mÃ³vil');
 
       o += d.usd * mult;
       if (isUSD) {
-        // Caja Divisa: solo efectivo USD físico
+        // Caja Divisa: solo efectivo USD fÃ­sico
         if (isCash) u += d.usd * mult;
-        // USD no-efectivo (Zelle, etc) también suma al total operativo pero no a caja física
+        // USD no-efectivo (Zelle, etc) tambiÃ©n suma al total operativo pero no a caja fÃ­sica
         // o ya lo acumula arriba
       } else {
-        // VES: separar estrictamente Efectivo vs Pago Móvil
+        // VES: separar estrictamente Efectivo vs Pago MÃ³vil
         if (isCash) {
           vc += d.ves * mult;
         } else if (isPagoMovil) {
           vb += d.ves * mult;
         }
-        // Transferencias genéricas NO suman a ningún tile de liquidez
+        // Transferencias genÃ©ricas NO suman a ningÃºn tile de liquidez
         const tr = d.t_reg > 1 ? d.t_reg : tasa;
         dev += ((d.ves / tr) - (d.ves / tasa)) * mult;
       }
@@ -406,7 +405,7 @@ const App: React.FC = () => {
 
   useEffect(() => { setPaginaActual(1); }, [activeTab, filtroActivo, searchCat, selectedCategory]);
 
-  // Consolidamos handleSyncRate como función accesible
+  // Consolidamos handleSyncRate como funciÃ³n accesible
   const handleRateSyncBtn = () => {
     const fn = async () => {
       setSyncing(true);
@@ -438,9 +437,10 @@ const App: React.FC = () => {
     setSyncing(true);
     setIsEditModalOpen(false);
     try {
+      // text/plain evita preflight OPTIONS que Apps Script rechaza
       await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(editingRow)
       });
       fetchData(true);
@@ -480,14 +480,14 @@ const App: React.FC = () => {
           <NavBtn active={activeTab === 'dash'} onClick={() => setActiveTab('dash')} icon={<LayoutDashboard />} label="Dashboard" isDark={isDark} />
           <NavBtn active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<ArrowUpCircle />} label="Ingresos" isDark={isDark} />
           <NavBtn active={activeTab === 'expense'} onClick={() => setActiveTab('expense')} icon={<ArrowDownCircle />} label="Egresos" isDark={isDark} />
-          <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />
+          <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="AuditorÃ­a" isDark={isDark} />
           <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />
           <NavBtn active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<FileText />} label="Reportes" isDark={isDark} />
         </div>
 
         <div className="hidden md:block mt-auto p-4 border-t border-white/5 space-y-2">
           <button onClick={() => window.open('file:///c:/Users/sahel/Downloads/finanzas-jes---dashboard/MASTER_MANUAL.md', '_blank')} className="w-full h-11 flex items-center justify-center gap-2 bg-blue-600/10 rounded-xl text-[10px] font-black uppercase border border-blue-500/20 text-blue-500 hover:bg-blue-600 hover:text-white transition-all">
-            <BookOpen className="w-4 h-4" /> Manual Técnico
+            <BookOpen className="w-4 h-4" /> Manual TÃ©cnico
           </button>
           <button onClick={() => setIsDark(!isDark)} className="w-full h-11 flex items-center justify-center gap-2 bg-white/5 rounded-xl text-[10px] font-black uppercase border border-white/5 hover:bg-white/10 transition-all">
             {isDark ? <><Sun className="w-4 h-4 text-amber-500" /> Claro</> : <><Moon className="w-4 h-4 text-blue-500" /> Oscuro</>}
@@ -548,14 +548,14 @@ const App: React.FC = () => {
               <section className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
                 <KpiTile label="Caja Divisa" val={`$ ${fmt(stats.c.u)}`} icon={<DollarSign />} c="jes" isDark={isDark} />
                 <KpiTile label="Caja VES" val={`Bs. ${fmt(stats.c.vc)}`} sub={`$ ${fmt(stats.c.vc / (tasa > 1 ? tasa : 1))}`} icon={<CreditCard />} c="jes" isDark={isDark} />
-                <KpiTile label="Móvil/Banco" val={`Bs. ${fmt(stats.c.vb)}`} sub={`$ ${fmt(stats.c.vb / (tasa > 1 ? tasa : 1))}`} icon={<Landmark />} c="jes" isDark={isDark} />
+                <KpiTile label="MÃ³vil/Banco" val={`Bs. ${fmt(stats.c.vb)}`} sub={`$ ${fmt(stats.c.vb / (tasa > 1 ? tasa : 1))}`} icon={<Landmark />} c="jes" isDark={isDark} />
                 <KpiTile label="Total VES" val={`Bs. ${fmt(stats.c.vt)}`} sub={`$ ${fmt(stats.c.vt / (tasa > 1 ? tasa : 1))}`} icon={<PiggyBank />} c="amber" isDark={isDark} />
                 <KpiTile label="Tasa BCV" val={`${tasa.toFixed(2)}`} sub="VES/$" icon={<Database />} c="amber" isDark={isDark} />
                 <KpiTile label="Poder Real" val={`$ ${fmt(stats.c.t)}`} sub={`vs $${fmt(stats.c.o)}`} icon={<TrendingUp />} c="jes" isDark={isDark} />
                 <KpiTile label="Diferencial" val={`${stats.c.d >= 0 ? '+' : ''}$ ${fmt(stats.c.d)}`} sub={stats.c.d < 0 ? 'Deval.' : 'Ganancia'} icon={<DevaluationIcon />} c={stats.c.d < 0 ? "rose" : "emerald"} isDark={isDark} />
               </section>
 
-              {/* CONTENEDOR DE GRÁFICOS FLEXIBLE */}
+              {/* CONTENEDOR DE GRÃFICOS FLEXIBLE */}
               <div className="flex-1 min-h-[400px] flex flex-col gap-4">
                 {/* PERFORMANCE CHART ADAPTADO */}
                 <div className={`${cardClass} rounded-[2rem] p-4 lg:p-6 flex-[1.5] flex flex-col min-h-[250px]`}>
@@ -616,7 +616,7 @@ const App: React.FC = () => {
                   <div className="p-2.5 rounded-xl bg-white/5"><Search className="w-4 h-4 text-slate-500" /></div>
                   <input
                     className={`flex-1 bg-transparent border-none outline-none text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} placeholder:text-slate-600 uppercase tracking-widest`}
-                    placeholder="Buscador inteligente (Concepto o Categoría)..."
+                    placeholder="Buscador inteligente (Concepto o CategorÃ­a)..."
                     value={searchCat}
                     onChange={(e) => setSearchCat(e.target.value)}
                   />
@@ -631,7 +631,7 @@ const App: React.FC = () => {
                       onChange={(e) => setSelectedCategory(e.target.value)}
                       className={`w-full bg-transparent border-none outline-none text-[10px] md:text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} uppercase tracking-widest appearance-none cursor-pointer pr-8`}
                     >
-                      <option value="TODAS" className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>TODAS LAS CATEGORÍAS</option>
+                      <option value="TODAS" className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>TODAS LAS CATEGORÃAS</option>
                       {stats.categories.map((c: string) => (
                         <option key={c} value={c} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>{c.toUpperCase()}</option>
                       ))}
@@ -648,8 +648,8 @@ const App: React.FC = () => {
                       {activeTab === 'income' ? <ArrowUpCircle className="w-7 h-7" /> : activeTab === 'expense' ? <ArrowDownCircle className="w-7 h-7" /> : <BadgeCheck className="w-7 h-7" />}
                     </div>
                     <div>
-                      <h3 className="text-[17px] font-black uppercase tracking-tighter leading-none">{activeTab === 'income' ? 'Registro de Ingresos' : activeTab === 'expense' ? 'Registro de Egresos' : 'Panel de Auditoría'}</h3>
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mt-2 italic opacity-50">{ALL_MONTHS.find(m => m.id === filtroActivo)?.name.toUpperCase()} • {stats.m.total} MOVIMIENTOS</p>
+                      <h3 className="text-[17px] font-black uppercase tracking-tighter leading-none">{activeTab === 'income' ? 'Registro de Ingresos' : activeTab === 'expense' ? 'Registro de Egresos' : 'Panel de AuditorÃ­a'}</h3>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mt-2 italic opacity-50">{ALL_MONTHS.find(m => m.id === filtroActivo)?.name.toUpperCase()} â€¢ {stats.m.total} MOVIMIENTOS</p>
                     </div>
                   </div>
                   <Pagination cur={paginaActual} total={Math.ceil(stats.m.total / PAGE_SIZE)} onCh={setPaginaActual} isDark={isDark} />
@@ -659,10 +659,10 @@ const App: React.FC = () => {
                     <thead className={`sticky top-0 ${isDark ? 'bg-[#0e1117]' : 'bg-slate-100'} z-10 border-b ${isDark ? 'border-white/5' : 'border-slate-200'} hidden md:table-header-group`}>
                       <tr>
                         <th className="px-6 md:px-10 py-4 md:py-6 text-slate-500 uppercase font-black tracking-widest text-[10px]">Asiento / Detalles</th>
-                        <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Categoría</th>
+                        <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">CategorÃ­a</th>
                         <th className="px-10 py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Origen</th>
                         <th className="px-6 md:px-10 py-4 md:py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px]">Equiv. USD</th>
-                        {activeTab === 'audit' && <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Acción</th>}
+                        {activeTab === 'audit' && <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">AcciÃ³n</th>}
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${isDark ? 'divide-white/[0.04]' : 'divide-slate-200'}`}>
@@ -695,7 +695,7 @@ const App: React.FC = () => {
                       owner="Dato de Pago"
                       id={`C.I. ${BANK_CONFIG.id}`}
                       acc={BANK_CONFIG.phone}
-                      type={`Pago Móvil (${BANK_CONFIG.code})`}
+                      type={`Pago MÃ³vil (${BANK_CONFIG.code})`}
                       isDark={isDark}
                     />
                     <div className={`mt-6 p-6 rounded-2xl border ${isDark ? 'bg-blue-500/5 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-700'} text-center`}>
@@ -709,167 +709,269 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'reports' && (
-            <div className="animate-in fade-in slide-in-from-bottom-10 duration-700 space-y-8 print:m-0 print:p-0">
-              <style>{`
+          {activeTab === 'reports' && (() => {
+            const allFiltered = filtroActivo === "ANUAL"
+              ? data.filter(d => {
+                const dMonthIdx = ALL_MONTHS.findIndex(m => m.id === d.mes);
+                const parts = String(d.fecha || "").split(/[-/]/);
+                const rowYear = parts.find(p => p.length === 4) || parts.find(p => p.length === 2 && (p === "25" || p === "26"));
+                const currentYear = new Date().getFullYear();
+                const isCorrectYear = rowYear && (rowYear.includes(String(currentYear)) || rowYear.includes(String(currentYear).slice(-2)));
+                return dMonthIdx >= 1 && isCorrectYear;
+              })
+              : data.filter(d => d.mes === filtroActivo);
+            const getMult = (d: any) => { const t = String(d.tipo || "").toLowerCase(); if (/ingreso|entrada/i.test(t)) return 1; if (/egreso|salida|gasto/i.test(t)) return -1; return 0; };
+            const totalTablePages = Math.max(1, Math.ceil(allFiltered.length / REPORT_TABLE_SIZE));
+            const cPage = Math.min(reportPage, totalTablePages);
+            const visibleRows = allFiltered.slice((cPage - 1) * REPORT_TABLE_SIZE, cPage * REPORT_TABLE_SIZE);
+            return (
+              <div className="animate-in fade-in slide-in-from-bottom-10 duration-500 print:m-0 print:p-0">
+                <style>{`
+              @page { size: A4; margin: 20mm; }
               @media print {
-                nav, .no-print, button, .recharts-wrapper { display: none !important; }
-                .print-block { display: block !important; width: 100% !important; background: white !important; color: black !important; border: 1px solid #000 !important; padding: 20px !important; margin-bottom: 20px !important; border-radius: 0 !important; }
-                h2, h3, h4, p, span { color: black !important; }
-                .grid { display: block !important; }
-                .bg-blue-600, .bg-blue-700 { background: white !important; border: 2px solid black !important; color: black !important; }
-                * { transition: none !important; }
+                nav, .no-print, header, .recharts-wrapper { display: none !important; }
+                html, body { margin: 0 !important; padding: 0 !important; background: white !important; color: #333 !important; }
+                main { padding: 0 !important; margin: 0 !important; height: auto !important; overflow: visible !important; max-width: 100% !important; }
+                .print-report { display: block !important; width: 100% !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; background: white !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+                .print-only { display: table-row-group !important; }
+                .screen-only { display: none !important; }
+                .print-summary { -webkit-print-color-adjust: exact; print-color-adjust: exact; page-break-inside: avoid; }
+                .print-summary.income { background-color: #e8f5e9 !important; border-color: #c8e6c9 !important; }
+                .print-summary.income * { color: #2e7d32 !important; }
+                .print-summary.expense { background-color: #ffebee !important; border-color: #ffcdd2 !important; }
+                .print-summary.expense * { color: #c62828 !important; }
+                .print-summary.balance { background-color: #e3f2fd !important; border-color: #bbdefb !important; }
+                .print-summary.balance * { color: #1565c0 !important; }
+                .print-thead { background-color: #2c3e50 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .print-thead th { color: white !important; }
+                .print-signatures { page-break-inside: avoid; }
+                table { page-break-inside: auto; }
+                tr { page-break-inside: avoid; page-break-after: auto; }
+                * { transition: none !important; animation: none !important; color: #333 !important; }
               }
-            `}</style>
-
-              <div className={`${cardClass} rounded-[3rem] overflow-hidden p-10 print-block`}>
-                <div className="flex justify-between items-center mb-12">
+              `}</style>
+                <div className="flex justify-between items-center mb-3 no-print">
                   <div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter">Centro de Reportes Inteligentes</h2>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">📊 {filtroActivo === "ANUAL" ? "REPORTE ANUAL CONSOLIDADO" : filtroActivo.startsWith("Q") ? `REPORTE TRIMESTRAL: ${filtroActivo}` : `REPORTE MENSUAL: ${filtroActivo.toUpperCase()}`}</p>
+                    <h2 className={`text-lg font-black uppercase tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>Informe de GestiÃ³n</h2>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">ðŸ“Š {filtroActivo === "ANUAL" ? "CONSOLIDADO ANUAL 2026" : `MENSUAL: ${filtroActivo.toUpperCase()}`}</p>
                   </div>
-                  <button onClick={() => window.print()} className="flex items-center gap-3 px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-500/20 no-print">
-                    <Printer className="w-5 h-5" /> Imprimir Balance B/N
+                  <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
+                    <Printer className="w-3.5 h-3.5" /> Imprimir A4
                   </button>
                 </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-                  <div className="lg:col-span-2 space-y-8">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className={`p-8 rounded-[2rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'} print:border-black`}>
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 text-emerald-500 print:text-black">Total Ingresos</p>
-                        <h4 className="text-3xl font-black tracking-tighter">${fmt(stats.m.in)}</h4>
-                      </div>
-                      <div className={`p-8 rounded-[2rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'} print:border-black`}>
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 text-rose-500 print:text-black">Total Egresos</p>
-                        <h4 className="text-3xl font-black tracking-tighter">${fmt(stats.m.out)}</h4>
+                <div className={`print-report ${cardClass} rounded-2xl`} style={{ fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", overflow: 'visible' }}>
+                  <div className={`px-5 py-3 border-b ${isDark ? 'border-slate-700' : 'border-[#2c3e50]'} flex justify-between items-center`}>
+                    <div className="flex items-center gap-3">
+                      <img src={LOGO_URL} className="w-10 h-10 object-contain" alt="Logo JES" />
+                      <div>
+                        <h1 className={`text-[13px] font-bold uppercase leading-tight ${isDark ? 'text-white' : 'text-[#2c3e50]'}`}>Informe de GestiÃ³n de Recursos</h1>
+                        <p className={`text-[9px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>AdministraciÃ³n y Finanzas</p>
                       </div>
                     </div>
-                    <div className={`p-8 rounded-[2.5rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'} no-print`}>
-                      <h3 className="text-xs font-black uppercase tracking-widest mb-6 opacity-50">Distribución de Flujo</h3>
-                      <div className="h-[200px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={stats.trend}>
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
-                            <Tooltip contentStyle={{ backgroundColor: isDark ? '#0a0c10' : '#fff', border: 'none', borderRadius: '15px' }} />
-                            <Bar dataKey="in" fill="#10b981" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="out" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
+                    <div className="text-right">
+                      <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><strong>Periodo:</strong> {filtroActivo === "ANUAL" ? "Ene - Dic 2026" : filtroActivo.toUpperCase() + " 2026"}</p>
+                      <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><strong>Generado:</strong> {new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                     </div>
                   </div>
-                  <div className={`p-8 rounded-[2.5rem] ${isDark ? 'bg-blue-600 text-white shadow-2xl shadow-blue-500/20' : 'bg-blue-700 text-white shadow-xl'} flex flex-col justify-center items-center text-center print:border-2 print:border-black`}>
-                    <ShieldCheck className="w-16 h-16 mb-6 opacity-50 print:hidden" />
-                    <h3 className="text-lg font-black uppercase tracking-tighter leading-tight mb-2">Certificación de Auditoría</h3>
-                    <p className="text-[10px] font-medium uppercase tracking-[0.2em] opacity-80 mb-8 border-t border-white/20 pt-4 print:border-black">Balance General Validado</p>
-                    <div className="text-4xl font-black tracking-tighter mb-2">${fmt(stats.m.in - stats.m.out)}</div>
-                    <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Superávit / Déficit del Periodo</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print-block">
-                  <div className={`p-8 rounded-[2rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'} print:border-black`}>
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-6 border-b border-white/5 pb-4 print:border-black flex items-center gap-3">
-                      <Coins className="w-4 h-4 text-blue-500" /> Desglose por Moneda
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className="opacity-50 uppercase">Divisa (USD)</span>
-                        <span className="font-mono">In: ${fmt(stats.breakdown.in.usd)} / Out: ${fmt(stats.breakdown.out.usd)}</span>
+                  <div className="px-5 py-3">
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div className={`print-summary income p-3 rounded-lg text-center border ${isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-[#e8f5e9] border-[#c8e6c9]'}`}>
+                        <h3 className={`text-[8px] font-bold uppercase mb-1 ${isDark ? 'text-emerald-400' : 'text-slate-500'}`}>Total Ingresos</h3>
+                        <div className={`text-lg font-bold ${isDark ? 'text-emerald-400' : 'text-[#2e7d32]'}`}>$ {fmt(stats.m.in)}</div>
                       </div>
-                      <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className="opacity-50 uppercase">Bolívares (VES)</span>
-                        <span className="font-mono">In: Bs.{fmt(stats.breakdown.in.ves)} / Out: Bs.{fmt(stats.breakdown.out.ves)}</span>
+                      <div className={`print-summary expense p-3 rounded-lg text-center border ${isDark ? 'bg-rose-500/10 border-rose-500/20' : 'bg-[#ffebee] border-[#ffcdd2]'}`}>
+                        <h3 className={`text-[8px] font-bold uppercase mb-1 ${isDark ? 'text-rose-400' : 'text-slate-500'}`}>Total Egresos</h3>
+                        <div className={`text-lg font-bold ${isDark ? 'text-rose-400' : 'text-[#c62828]'}`}>$ {fmt(stats.m.out)}</div>
                       </div>
-                      <div className="flex justify-between items-center text-[11px] font-black pt-4 border-t border-white/5 print:border-black">
-                        <span className="uppercase tracking-widest text-blue-500">Equivalencia Total USD</span>
-                        <span className="text-blue-500 font-mono tracking-tighter">${fmt(stats.breakdown.in.usdEq + stats.breakdown.out.usdEq)}</span>
+                      <div className={`print-summary balance p-3 rounded-lg text-center border ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-[#e3f2fd] border-[#bbdefb]'}`}>
+                        <h3 className={`text-[8px] font-bold uppercase mb-1 ${isDark ? 'text-blue-400' : 'text-slate-500'}`}>Balance Neto</h3>
+                        <div className={`text-lg font-bold ${isDark ? 'text-blue-400' : 'text-[#1565c0]'}`}>$ {fmt(stats.m.in - stats.m.out)}</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                      <div className={`p-3 rounded-lg border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                        <p className="text-[8px] font-bold text-slate-500 uppercase mb-1.5">Por Moneda</p>
+                        <div className="space-y-1 text-[10px]">
+                          <div className="flex justify-between"><span className="opacity-60">USD</span><span className="font-mono font-bold">In: ${fmt(stats.breakdown.in.usd)} / Out: ${fmt(stats.breakdown.out.usd)}</span></div>
+                          <div className="flex justify-between"><span className="opacity-60">VES</span><span className="font-mono font-bold">In: Bs.{fmt(stats.breakdown.in.ves)} / Out: Bs.{fmt(stats.breakdown.out.ves)}</span></div>
+                        </div>
+                      </div>
+                      <div className={`p-3 rounded-lg border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                        <p className="text-[8px] font-bold text-slate-500 uppercase mb-1.5">Por MÃ©todo</p>
+                        <div className="space-y-1 text-[10px]">
+                          <div className="flex justify-between"><span className="opacity-60">Efectivo</span><span className="font-mono font-bold">In: ${fmt(stats.breakdown.in.cash)} / Out: ${fmt(stats.breakdown.out.cash)}</span></div>
+                          <div className="flex justify-between"><span className="opacity-60">Banco / MÃ³vil</span><span className="font-mono font-bold">In: ${fmt(stats.breakdown.in.bank)} / Out: ${fmt(stats.breakdown.out.bank)}</span></div>
+                        </div>
                       </div>
                     </div>
                   </div>
-
-                  <div className={`p-8 rounded-[2rem] ${isDark ? 'bg-white/5' : 'bg-slate-50 border border-slate-200'} print:border-black`}>
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-6 border-b border-white/5 pb-4 print:border-black flex items-center gap-3">
-                      <CreditCard className="w-4 h-4 text-emerald-500" /> Análisis por Método
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className="opacity-50 uppercase">Efectivo (Operativo)</span>
-                        <span className="font-mono tracking-tighter text-[10px]">In: <span className="text-emerald-500">${fmt(stats.breakdown.in.cash)}</span> / Out: <span className="text-rose-500">${fmt(stats.breakdown.out.cash)}</span></span>
+                  <div className="px-5 pb-2">
+                    <div className="flex justify-between items-center mb-2">
+                      <h2 className={`text-[11px] font-bold pl-2 border-l-2 ${isDark ? 'text-white border-slate-500' : 'text-[#2c3e50] border-[#2c3e50]'}`}>Detalle de Movimientos ({allFiltered.length})</h2>
+                      {totalTablePages > 1 && (
+                        <div className="flex items-center gap-1 no-print">
+                          <button onClick={() => setReportPage(Math.max(1, reportPage - 1))} disabled={cPage <= 1} className={`p-1 rounded-lg transition-all ${cPage <= 1 ? 'opacity-20' : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-200'}`}><ArrowLeft className="w-3 h-3" /></button>
+                          <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 ${isDark ? 'text-white' : 'text-slate-700'}`}>{cPage}/{totalTablePages}</span>
+                          <button onClick={() => setReportPage(Math.min(totalTablePages, reportPage + 1))} disabled={cPage >= totalTablePages} className={`p-1 rounded-lg transition-all ${cPage >= totalTablePages ? 'opacity-20' : isDark ? 'hover:bg-white/10' : 'hover:bg-slate-200'}`}><ArrowRight className="w-3 h-3" /></button>
+                        </div>
+                      )}
+                    </div>
+                    <table className="w-full border-collapse text-[10px]">
+                      <thead>
+                        <tr className={`print-thead ${isDark ? 'bg-slate-800' : 'bg-[#2c3e50]'}`}>
+                          <th className="px-2 py-2 text-left text-white text-[9px] font-semibold uppercase tracking-wider" style={{ width: '11%' }}>Fecha</th>
+                          <th className="px-2 py-2 text-left text-white text-[9px] font-semibold uppercase tracking-wider" style={{ width: '35%' }}>DescripciÃ³n</th>
+                          <th className="px-2 py-2 text-left text-white text-[9px] font-semibold uppercase tracking-wider" style={{ width: '15%' }}>CategorÃ­a</th>
+                          <th className="px-2 py-2 text-right text-white text-[9px] font-semibold uppercase tracking-wider" style={{ width: '13%' }}>Ingreso</th>
+                          <th className="px-2 py-2 text-right text-white text-[9px] font-semibold uppercase tracking-wider" style={{ width: '13%' }}>Egreso</th>
+                          <th className="px-2 py-2 text-right text-white text-[9px] font-semibold uppercase tracking-wider" style={{ width: '13%' }}>USD</th>
+                        </tr>
+                      </thead>
+                      <tbody className="screen-only">
+                        {visibleRows.map((r: any, i: number) => {
+                          const m = getMult(r); const inc = m > 0; const gi = (cPage - 1) * REPORT_TABLE_SIZE + i; return (
+                            <tr key={gi} className={`border-b ${isDark ? 'border-white/5' : 'border-slate-200'} ${gi % 2 === 1 ? (isDark ? 'bg-white/[0.02]' : 'bg-[#f9f9f9]') : ''}`}>
+                              <td className={`px-2 py-1.5 text-[10px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{r.fecha}</td>
+                              <td className={`px-2 py-1.5 text-[10px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{r.desc || r.cat}</td>
+                              <td className={`px-2 py-1.5 text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{r.cat}</td>
+                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono ${inc ? 'text-emerald-600 font-semibold' : ''}`}>{inc ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
+                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono ${!inc && m !== 0 ? 'text-rose-600 font-semibold' : ''}`}>{!inc && m !== 0 ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
+                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>${fmt(r.usd)}</td>
+                            </tr>);
+                        })}
+                      </tbody>
+                      <tbody className="print-only" style={{ display: 'none' }}>
+                        {allFiltered.map((r: any, i: number) => {
+                          const m = getMult(r); const inc = m > 0; return (
+                            <tr key={i} className={`border-b border-slate-200 ${i % 2 === 1 ? 'bg-[#f9f9f9]' : ''}`}>
+                              <td className="px-2 py-1.5 text-[10px] text-slate-700">{r.fecha}</td>
+                              <td className="px-2 py-1.5 text-[10px] text-slate-800">{r.desc || r.cat}</td>
+                              <td className="px-2 py-1.5 text-[10px] text-slate-600">{r.cat}</td>
+                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono ${inc ? 'text-emerald-600 font-semibold' : ''}`}>{inc ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
+                              <td className={`px-2 py-1.5 text-[10px] text-right font-mono ${!inc && m !== 0 ? 'text-rose-600 font-semibold' : ''}`}>{!inc && m !== 0 ? `${r.mon_orig === 'USD' ? '$' : 'Bs.'}${fmt(r.m_orig)}` : '-'}</td>
+                              <td className="px-2 py-1.5 text-[10px] text-right font-mono font-bold text-slate-700">${fmt(r.usd)}</td>
+                            </tr>);
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className={`font-bold border-t-2 ${isDark ? 'border-slate-600 bg-white/5' : 'border-[#2c3e50] bg-slate-100'}`}>
+                          <td colSpan={3} className="px-2 py-2 text-right text-[10px] uppercase tracking-wider">Totales:</td>
+                          <td className="px-2 py-2 text-right text-[10px] font-mono text-emerald-600">$ {fmt(stats.m.in)}</td>
+                          <td className="px-2 py-2 text-right text-[10px] font-mono text-rose-600">$ {fmt(stats.m.out)}</td>
+                          <td className="px-2 py-2 text-right text-[10px] font-mono font-black">$ {fmt(stats.m.in - stats.m.out)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <div className="px-5 py-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0' }}>
+                    <div className={`p-3 rounded-lg border mb-3 ${isDark ? 'bg-white/5 border-white/10' : 'bg-[#fafafa] border-slate-200'}`}>
+                      <p className={`text-[10px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        <strong>Nota de GestiÃ³n:</strong> {stats.m.in > stats.m.out
+                          ? `SuperÃ¡vit de $${fmt(stats.m.in - stats.m.out)}. Se recomienda reservar un porcentaje para el fondo de contingencias.`
+                          : `DÃ©ficit de $${fmt(stats.m.out - stats.m.in)}. Revisar gastos operativos y evaluar fuentes adicionales de ingreso.`}
+                      </p>
+                    </div>
+                    <div className="print-signatures flex justify-between pt-2">
+                      <div className="w-[40%] text-center">
+                        <p className={`text-[10px] font-bold mb-10 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Elaborado por:</p>
+                        <div className={`border-t ${isDark ? 'border-slate-600' : 'border-slate-400'} mx-auto w-40`}></div>
+                        <p className={`text-[9px] mt-1 text-slate-500`}>Firma y Sello</p>
                       </div>
-                      <div className="flex justify-between items-center text-[10px] font-bold">
-                        <span className="opacity-50 uppercase">Banco / Transferencia</span>
-                        <span className="font-mono tracking-tighter text-[10px]">In: <span className="text-emerald-500">${fmt(stats.breakdown.in.bank)}</span> / Out: <span className="text-rose-500">${fmt(stats.breakdown.out.bank)}</span></span>
+                      <div className="w-[40%] text-center">
+                        <p className={`text-[10px] font-bold mb-10 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Aprobado por:</p>
+                        <div className={`border-t ${isDark ? 'border-slate-600' : 'border-slate-400'} mx-auto w-40`}></div>
+                        <p className={`text-[9px] mt-1 text-slate-500`}>DirecciÃ³n General</p>
                       </div>
                     </div>
+                    <div className={`mt-3 pt-2 text-center border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                      <p className={`text-[8px] ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                        Informe generado el {new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} | Finanzas JES Suite
+                      </p>
+                    </div>
                   </div>
-                </div>
-
-                <div className="mt-12 hidden print:block pt-10 border-t-2 border-dashed border-black">
-                  <h3 className="text-xs font-black uppercase tracking-widest mb-6">Firma Autorizada y Sello</h3>
-                  <div className="mt-20 border-t border-black w-64"></div>
-                  <p className="text-[9px] mt-2 font-black uppercase tracking-widest">Administración Finanzas JES</p>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
-          {/* AUDIT MODAL MODERNO */}
+          {/* AUDIT MODAL PROFESIONAL v2.0 */}
           {
             isEditModalOpen && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl">
-                <div className={`${isDark ? 'bg-[#0f1218]' : 'bg-white'} border ${isDark ? 'border-white/10' : 'border-slate-200'} rounded-[3rem] w-full max-w-sm overflow-hidden animate-in zoom-in duration-300 shadow-3xl shadow-blue-500/20`}>
-                  <div className="p-8 border-b border-white/5 bg-white/[0.02] flex justify-between items-center text-slate-100">
-                    <h3 className="text-xs font-black uppercase flex gap-3 items-center tracking-[0.2em] opacity-80">Edición de Control</h3>
-                    <button onClick={() => setIsEditModalOpen(false)} className="bg-white/5 p-2 rounded-full hover:text-white transition-all hover:rotate-90">✕</button>
-                  </div>
-                  <div className="p-10 space-y-8">
-                    <div className="space-y-3 font-black">
-                      <label className="text-[9px] text-slate-600 uppercase tracking-widest ml-1">Concepto del Asiento</label>
-                      <input className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white shadow-inner' : 'bg-slate-50 border-slate-200 text-slate-900 shadow-sm'} p-5 rounded-2xl text-[13px] outline-none focus:border-blue-500 border-2 transition-all font-black uppercase tracking-tight`} value={editingRow.desc} onChange={(e) => setEditingRow({ ...editingRow, desc: e.target.value })} />
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl" onClick={() => setIsEditModalOpen(false)}>
+                <div onClick={(e) => e.stopPropagation()} className={`${isDark ? 'bg-[#0f1218]' : 'bg-white'} border ${isDark ? 'border-white/10' : 'border-slate-200'} rounded-[2rem] w-full max-w-md overflow-hidden animate-in zoom-in duration-300 shadow-2xl`}>
+                  <div className={`p-6 border-b ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-100 bg-slate-50'} flex justify-between items-center`}>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-blue-500/10"><Edit3 className="w-4 h-4 text-blue-500" /></div>
+                      <h3 className={`text-xs font-black uppercase tracking-[0.15em] ${isDark ? 'text-white' : 'text-slate-800'}`}>EdiciÃ³n de Control</h3>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-3 font-black">
-                        <label className="text-[9px] text-slate-600 uppercase tracking-widest ml-1">Método</label>
-                        <select className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-5 rounded-2xl text-[13px] outline-none appearance-none border-2 font-black uppercase tracking-tight`} value={editingRow.met} onChange={(e) => setEditingRow({ ...editingRow, met: e.target.value })}>
+                    <button onClick={() => setIsEditModalOpen(false)} className={`p-2 rounded-xl ${isDark ? 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10' : 'bg-slate-100 text-slate-500 hover:text-slate-800 hover:bg-slate-200'} transition-all hover:rotate-90`}><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="p-6 space-y-5">
+                    {/* Concepto */}
+                    <div className="space-y-2">
+                      <label className={`text-[9px] font-black uppercase tracking-widest ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Concepto del Asiento</label>
+                      <input className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-4 rounded-xl text-[12px] outline-none focus:border-blue-500 border-2 transition-all font-bold`} value={editingRow.desc} onChange={(e) => setEditingRow({ ...editingRow, desc: e.target.value })} />
+                    </div>
+
+                    {/* Tipo + CategorÃ­a */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className={`text-[9px] font-black uppercase tracking-widest ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Tipo</label>
+                        <select className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-4 rounded-xl text-[12px] outline-none appearance-none border-2 font-bold`} value={editingRow.tipo} onChange={(e) => setEditingRow({ ...editingRow, tipo: e.target.value })}>
+                          <option value="ingreso">Ingreso</option>
+                          <option value="egreso">Egreso</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className={`text-[9px] font-black uppercase tracking-widest ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>CategorÃ­a</label>
+                        <input className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-4 rounded-xl text-[12px] outline-none focus:border-blue-500 border-2 transition-all font-bold`} value={editingRow.cat} onChange={(e) => setEditingRow({ ...editingRow, cat: e.target.value })} />
+                      </div>
+                    </div>
+
+                    {/* MÃ©todo + Moneda */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className={`text-[9px] font-black uppercase tracking-widest ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>MÃ©todo</label>
+                        <select className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-4 rounded-xl text-[12px] outline-none appearance-none border-2 font-bold`} value={editingRow.met} onChange={(e) => setEditingRow({ ...editingRow, met: e.target.value })}>
                           <option value="efectivo">Efectivo</option>
-                          <option value="pago movil">Pago Móvil</option>
+                          <option value="pago movil">Pago MÃ³vil</option>
                           <option value="transferencia">Transferencia</option>
                           <option value="punto">Punto</option>
                         </select>
                       </div>
-                      <div className="space-y-3 font-black">
-                        <label className="text-[9px] text-slate-600 uppercase tracking-widest ml-1">Moneda</label>
-                        <select className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-5 rounded-2xl text-[13px] outline-none appearance-none border-2 font-black uppercase tracking-tight`} value={editingRow.mon_orig} onChange={(e) => setEditingRow({ ...editingRow, mon_orig: e.target.value })}>
-                          <option value="VES">Bolívares</option>
-                          <option value="USD">Dólares</option>
+                      <div className="space-y-2">
+                        <label className={`text-[9px] font-black uppercase tracking-widest ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Moneda</label>
+                        <select className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-4 rounded-xl text-[12px] outline-none appearance-none border-2 font-bold`} value={editingRow.mon_orig} onChange={(e) => setEditingRow({ ...editingRow, mon_orig: e.target.value })}>
+                          <option value="VES">BolÃ­vares (VES)</option>
+                          <option value="USD">DÃ³lares (USD)</option>
                         </select>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-3 font-black">
-                        <label className="text-[9px] text-slate-600 uppercase tracking-widest ml-1">Monto Orig.</label>
-                        <input type="number" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-5 rounded-2xl text-[13px] border-2 font-black outline-none transition-all`} value={editingRow.m_orig} onChange={(e) => setEditingRow({ ...editingRow, m_orig: Number(e.target.value) })} />
+                    {/* Monto + Tasa */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className={`text-[9px] font-black uppercase tracking-widest ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Monto Original</label>
+                        <input type="number" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-4 rounded-xl text-[12px] border-2 font-bold outline-none transition-all`} value={editingRow.m_orig} onChange={(e) => setEditingRow({ ...editingRow, m_orig: Number(e.target.value) })} />
                       </div>
-                      <div className="space-y-3 font-black">
-                        <label className="text-[9px] text-slate-600 uppercase tracking-widest ml-1">Tasa Reg.</label>
-                        <input type="number" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-5 rounded-2xl text-[13px] border-2 font-black outline-none transition-all`} value={editingRow.t_reg} onChange={(e) => setEditingRow({ ...editingRow, t_reg: Number(e.target.value) })} />
+                      <div className="space-y-2">
+                        <label className={`text-[9px] font-black uppercase tracking-widest ml-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Tasa Registro</label>
+                        <input type="number" className={`w-full ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} p-4 rounded-xl text-[12px] border-2 font-bold outline-none transition-all`} value={editingRow.t_reg} onChange={(e) => setEditingRow({ ...editingRow, t_reg: Number(e.target.value) })} />
                       </div>
                     </div>
 
-                    <div className="flex gap-4 pt-4">
-                      <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-5 text-[10px] font-black text-slate-500 bg-white/5 rounded-2xl uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5">Cancelar</button>
-                      <button onClick={save} className="flex-1 py-5 text-[10px] font-black bg-blue-600 text-white rounded-2xl uppercase shadow-2xl shadow-blue-500/50 hover:bg-blue-500 transition-all active:scale-95">Guardar Cambios</button>
+                    {/* Acciones */}
+                    <div className="flex gap-3 pt-2">
+                      <button onClick={() => setIsEditModalOpen(false)} className={`flex-1 py-4 text-[10px] font-black rounded-xl uppercase tracking-widest transition-all border ${isDark ? 'text-slate-400 bg-white/5 border-white/5 hover:bg-white/10' : 'text-slate-500 bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>Cancelar</button>
+                      <button onClick={save} className="flex-1 py-4 text-[10px] font-black bg-blue-600 text-white rounded-xl uppercase shadow-lg shadow-blue-500/30 hover:bg-blue-500 transition-all active:scale-95">Guardar Cambios</button>
                     </div>
-                    <p className="text-[9px] text-center text-slate-600 font-extrabold uppercase flex justify-center gap-3 mt-4 opacity-40 italic tracking-widest"><ShieldCheck className="w-4 h-4" /> Registro Auditado hacia la Nube</p>
+                    <p className={`text-[8px] text-center font-bold uppercase flex justify-center gap-2 mt-2 opacity-40 italic tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}><ShieldCheck className="w-3 h-3" /> Registro Auditado hacia la Nube</p>
                   </div>
                 </div>
               </div>
             )
           }
-        </div>
+        </div >
       </main >
       {
         showExchange && (
@@ -887,7 +989,7 @@ const App: React.FC = () => {
   );
 };
 
-// --- SUB-COMPONENTES ATÓMICOS v9.7 ---
+// --- SUB-COMPONENTES ATÃ“MICOS v9.7 ---
 const NavBtn = ({ active, onClick, icon, label, isDark }: any) => {
   const c = active
     ? `text-white shadow-2xl transition-all scale-105`
@@ -1043,7 +1145,7 @@ const AsientoRow = ({ r, isDark, showAudit, onAudit }: any) => {
           <td colSpan={showAudit ? 3 : 2} className={`px-4 py-4 ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'} border-t border-white/5`}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest opacity-60">Categoría</p>
+                <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest opacity-60">CategorÃ­a</p>
                 <p className={`text-[10px] font-black uppercase ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{r.cat}</p>
               </div>
               <div className="space-y-1 text-right">
@@ -1068,7 +1170,7 @@ const AsientoRow = ({ r, isDark, showAudit, onAudit }: any) => {
   );
 };
 
-// --- SUB-COMPONENTES ATÓMICOS v9.7 ---
+// --- SUB-COMPONENTES ATÃ“MICOS v9.7 ---
 
 const MetricCard = ({ title, val, desc, color, isDark }: any) => {
   const colors: any = {
@@ -1131,7 +1233,7 @@ const ExchangeModal = ({ isOpen, onClose, currentTasa, onExchange, stats, isDark
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
       <div className={`${isDark ? 'bg-[#020306] border-white/5' : 'bg-white border-slate-200'} border w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300`}>
         <div className="flex justify-between items-center mb-8">
-          <h2 className={`text-sm font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-slate-900'} italic`}>💱 Intercambio de Divisa</h2>
+          <h2 className={`text-sm font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-slate-900'} italic`}>ðŸ’± Intercambio de Divisa</h2>
           <button onClick={onClose} className="text-slate-500 hover:text-rose-500 transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
@@ -1142,7 +1244,7 @@ const ExchangeModal = ({ isOpen, onClose, currentTasa, onExchange, stats, isDark
 
         <div className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[8px] font-black text-slate-500 uppercase ml-2 tracking-widest">Monto en Dólares ($)</label>
+            <label className="text-[8px] font-black text-slate-500 uppercase ml-2 tracking-widest">Monto en DÃ³lares ($)</label>
             <input type="number" value={montoU} onChange={e => setMontoU(e.target.value)} placeholder="0.00" className={`w-full h-16 ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} border rounded-2xl px-6 text-[18px] font-black focus:border-blue-500 transition-all outline-none`} />
           </div>
 
@@ -1152,11 +1254,11 @@ const ExchangeModal = ({ isOpen, onClose, currentTasa, onExchange, stats, isDark
           </div>
 
           <div className={`${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-100'} p-6 rounded-2xl text-center space-y-1`}>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Recibirás aproximadamente</p>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">RecibirÃ¡s aproximadamente</p>
             <h3 className={`text-[24px] font-black tracking-tighter ${tipo === 'sell' ? 'text-amber-500' : 'text-emerald-500'}`}>
               {tipo === 'sell' ? `Bs. ${montoB.toLocaleString('de-DE', { minimumFractionDigits: 2 })}` : `$ ${muVal.toLocaleString('de-DE', { minimumFractionDigits: 2 })}`}
             </h3>
-            {!balanceOk && isValid && <p className="text-[9px] font-black text-rose-500 uppercase mt-2 animate-pulse">⚠️ Saldo Insuficiente en {tipo === 'sell' ? 'Divisas' : 'Bolívares'}</p>}
+            {!balanceOk && isValid && <p className="text-[9px] font-black text-rose-500 uppercase mt-2 animate-pulse">âš ï¸ Saldo Insuficiente en {tipo === 'sell' ? 'Divisas' : 'BolÃ­vares'}</p>}
           </div>
 
           <button
