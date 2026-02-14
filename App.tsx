@@ -100,7 +100,9 @@ const App: React.FC = () => {
     { user: 'admin', pass: 'admin2026', role: 'admin' as const, name: 'Administrador' },
     { user: 'vista', pass: 'vista2026', role: 'view' as const, name: 'Usuario Vista' },
   ];
-  const canEdit = userRole === 'supervisor' || userRole === 'admin';
+  const canEdit = userRole === 'supervisor';
+  const isAdmin = userRole === 'supervisor' || userRole === 'admin';
+  const isVista = userRole === 'view';
 
   // Persistence & Biometrics
   useEffect(() => {
@@ -613,10 +615,10 @@ const App: React.FC = () => {
 
         <div className="flex md:flex-col w-full md:p-4 overflow-x-hidden md:overflow-y-auto no-scrollbar gap-2 p-2">
           <NavBtn active={activeTab === 'dash'} onClick={() => setActiveTab('dash')} icon={<LayoutDashboard />} label="Dashboard" isDark={isDark} />
-          {canEdit && <NavBtn active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<ArrowUpCircle />} label="Ingresos" isDark={isDark} />}
-          {canEdit && <NavBtn active={activeTab === 'expense'} onClick={() => setActiveTab('expense')} icon={<ArrowDownCircle />} label="Egresos" isDark={isDark} />}
-          {canEdit && <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />}
-          {canEdit && <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />}
+          {isAdmin && <NavBtn active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<ArrowUpCircle />} label="Ingresos" isDark={isDark} />}
+          {isAdmin && <NavBtn active={activeTab === 'expense'} onClick={() => setActiveTab('expense')} icon={<ArrowDownCircle />} label="Egresos" isDark={isDark} />}
+          {isAdmin && <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />}
+          {isAdmin && <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />}
           <NavBtn active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<FileText />} label="Reportes" isDark={isDark} />
         </div>
 
@@ -672,12 +674,16 @@ const App: React.FC = () => {
               </button>
             </div>
             <div className="flex items-center gap-1.5 md:gap-3">
-              <button onClick={() => setShowExchange(true)} className="flex items-center justify-center w-9 h-9 md:w-auto md:px-4 md:h-11 rounded-xl text-white transition-all hover:scale-105 shadow-lg active:scale-95" style={{ backgroundColor: BRAND.accent }}>
-                <RefreshCw className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Intercambio</span>
-              </button>
-              <button onClick={() => window.open(FORM_URL, '_blank')} className="flex items-center justify-center w-9 h-9 md:w-auto md:px-4 md:h-11 rounded-xl text-white transition-all hover:scale-105 shadow-xl active:scale-95" style={{ backgroundColor: BRAND.primary }}>
-                <PlusCircle className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Nuevo Asiento</span>
-              </button>
+              {canEdit && (
+                <>
+                  <button onClick={() => setShowExchange(true)} className="flex items-center justify-center w-9 h-9 md:w-auto md:px-4 md:h-11 rounded-xl text-white transition-all hover:scale-105 shadow-lg active:scale-95" style={{ backgroundColor: BRAND.accent }}>
+                    <RefreshCw className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Intercambio</span>
+                  </button>
+                  <button onClick={() => window.open(FORM_URL, '_blank')} className="flex items-center justify-center w-9 h-9 md:w-auto md:px-4 md:h-11 rounded-xl text-white transition-all hover:scale-105 shadow-xl active:scale-95" style={{ backgroundColor: BRAND.primary }}>
+                    <PlusCircle className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Nuevo Asiento</span>
+                  </button>
+                </>
+              )}
               <button onClick={() => fetchData(true)} className={`w-9 h-9 md:w-11 md:h-11 flex items-center justify-center rounded-xl border ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'} transition-all ${syncing ? 'animate-spin' : ''}`}>
                 <RefreshCw className="w-4 h-4 opacity-50" />
               </button>
@@ -812,7 +818,7 @@ const App: React.FC = () => {
                     </thead>
                     <tbody className={`divide-y ${isDark ? 'divide-white/[0.04]' : 'divide-slate-200'}`}>
                       {stats.m.list.map((r, i) => (
-                        <AsientoRow key={i} r={r} isDark={isDark} showAudit={activeTab === 'audit'} onAudit={() => handleEdit(r)} />
+                        <AsientoRow key={i} r={r} isDark={isDark} showAudit={canEdit} onAudit={() => handleEdit(r)} />
                       ))}
                     </tbody>
                   </table>
