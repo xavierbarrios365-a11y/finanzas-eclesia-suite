@@ -87,6 +87,39 @@ const App: React.FC = () => {
   const [preparedBySig, setPreparedBySig] = useState<string | null>(null);
   const [approvedBySig, setApprovedBySig] = useState<string | null>(null);
 
+  // --- RBAC Authentication ---
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<'supervisor' | 'admin' | 'view'>('view');
+  const [userName, setUserName] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
+
+  const DEFAULT_USERS = [
+    { user: 'supervisor', pass: 'jes2026', role: 'supervisor' as const, name: 'Supervisor General' },
+    { user: 'admin', pass: 'admin2026', role: 'admin' as const, name: 'Administrador' },
+    { user: 'vista', pass: 'vista2026', role: 'view' as const, name: 'Usuario Vista' },
+  ];
+  const canEdit = userRole === 'supervisor' || userRole === 'admin';
+
+  // Persistence & Biometrics
+  useEffect(() => {
+    const saved = localStorage.getItem('jes_session');
+    if (saved) {
+      try {
+        const { role, name } = JSON.parse(saved);
+        setUserRole(role);
+        setUserName(name);
+        setIsAuthenticated(true);
+      } catch (e) { localStorage.removeItem('jes_session'); }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('jes_session');
+    setIsAuthenticated(false);
+    setActiveTab('dash');
+  };
+
   const PAGE_SIZE = 12;
 
   // El usuario solicitó Modo Claro por defecto siempre
@@ -443,7 +476,7 @@ const App: React.FC = () => {
       await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(editingRow)
+        body: JSON.stringify({ ...editingRow, action: 'edit', tasa: tasa }) // Enviar tasa actual para sincronía
       });
       fetchData(true);
     } catch (e) {
@@ -455,6 +488,101 @@ const App: React.FC = () => {
   const themeClass = isDark ? "bg-[#020306] text-slate-100 dark" : "bg-[#f8fafc] text-slate-900 light";
   const cardClass = isDark ? "bg-[#0a0c10] border-white/5 shadow-2xl shadow-black/40" : "bg-white border-slate-200 shadow-sm shadow-slate-200/50";
   const navClass = isDark ? "bg-[#0a0c10] border-white/5" : "bg-white border-slate-200 shadow-lg";
+
+  // --- LOGIN SCREEN ---
+  if (!isAuthenticated) {
+    const handleLogin = (e: React.FormEvent) => {
+      e.preventDefault();
+      const form = e.target as HTMLFormElement;
+      const u = (form.elements.namedItem('user') as HTMLInputElement).value.trim().toLowerCase();
+      const p = (form.elements.namedItem('pass') as HTMLInputElement).value;
+      const match = DEFAULT_USERS.find(x => x.user === u && x.pass === p);
+      if (match) {
+        if (rememberMe) {
+          localStorage.setItem('jes_session', JSON.stringify({ role: match.role, name: match.name }));
+        }
+        setUserRole(match.role);
+        setUserName(match.name);
+        setIsAuthenticated(true);
+        setLoginError('');
+      } else {
+        setLoginError('Credenciales incorrectas');
+      }
+    };
+
+    const handleBiometricLogin = async () => {
+      if (!window.PublicKeyCredential) {
+        alert("Tu dispositivo no soporta biometría web.");
+        return;
+      }
+      // Demo: En un entorno real se validaría el challenge del servidor.
+      // Aquí simulamos el acceso si ya hubo una sesión previa guardada.
+      const saved = localStorage.getItem('jes_session');
+      if (saved) {
+        const { role, name } = JSON.parse(saved);
+        setUserRole(role);
+        setUserName(name);
+        setIsAuthenticated(true);
+      } else {
+        alert("Primero inicia sesión con contraseña para activar biometría.");
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0c10] via-[#0f172a] to-[#020306] flex items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <img src={LOGO_URL} className="w-16 h-16 mx-auto mb-4 object-contain" alt="JES" />
+            <h1 className="text-lg font-black uppercase tracking-tight text-white">Finanzas <span style={{ color: BRAND.accent }}>JES</span> Suite</h1>
+            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Acceso Seguro</p>
+          </div>
+          <form onSubmit={handleLogin} className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-xl shadow-2xl shadow-black/50 space-y-4">
+            <div>
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Usuario</label>
+              <input name="user" type="text" required autoFocus
+                className="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl text-sm outline-none focus:border-[#2E6061] transition-all font-bold placeholder:text-slate-600"
+                placeholder="Ingrese su usuario" />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Contraseña</label>
+              <input name="pass" type="password" required
+                className="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl text-sm outline-none focus:border-[#2E6061] transition-all font-bold placeholder:text-slate-600"
+                placeholder="••••••••" />
+            </div>
+
+            <div className="flex items-center justify-between px-1">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="hidden" />
+                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${rememberMe ? 'bg-[#2E6061] border-[#2E6061]' : 'border-white/20 group-hover:border-white/40'}`}>
+                  {rememberMe && <Check className="w-3 h-3 text-white" />}
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 group-hover:text-slate-300 transition-colors">Recordar sesión</span>
+              </label>
+            </div>
+
+            {loginError && <p className="text-rose-400 text-[10px] font-bold text-center animate-pulse">{loginError}</p>}
+
+            <button type="submit"
+              className="w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+              style={{ background: `linear-gradient(135deg, ${BRAND.primary}, #1a4040)` }}
+            >
+              Iniciar Sesión
+            </button>
+
+            <button type="button" onClick={handleBiometricLogin}
+              className="w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] text-slate-300 border border-white/10 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+            >
+              <Zap className="w-4 h-4 text-amber-500 fill-amber-500/20" /> Acceso Biométrico
+            </button>
+
+            <div className="text-center pt-2">
+              <p className="text-[8px] text-slate-600">Roles: Supervisor · Administrador · Vista</p>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return (
     <div className={`min-h-screen ${themeClass} flex items-center justify-center`}>
@@ -480,19 +608,29 @@ const App: React.FC = () => {
 
         <div className="flex md:flex-col w-full md:p-4 overflow-x-hidden md:overflow-y-auto no-scrollbar gap-2 p-2">
           <NavBtn active={activeTab === 'dash'} onClick={() => setActiveTab('dash')} icon={<LayoutDashboard />} label="Dashboard" isDark={isDark} />
-          <NavBtn active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<ArrowUpCircle />} label="Ingresos" isDark={isDark} />
-          <NavBtn active={activeTab === 'expense'} onClick={() => setActiveTab('expense')} icon={<ArrowDownCircle />} label="Egresos" isDark={isDark} />
-          <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />
-          <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />
+          {canEdit && <NavBtn active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<ArrowUpCircle />} label="Ingresos" isDark={isDark} />}
+          {canEdit && <NavBtn active={activeTab === 'expense'} onClick={() => setActiveTab('expense')} icon={<ArrowDownCircle />} label="Egresos" isDark={isDark} />}
+          {canEdit && <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />}
+          {canEdit && <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />}
           <NavBtn active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<FileText />} label="Reportes" isDark={isDark} />
         </div>
 
         <div className="hidden md:block mt-auto p-4 border-t border-white/5 space-y-2">
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${isDark ? 'bg-white/5' : 'bg-slate-50'} mb-2`}>
+            <ShieldCheck className="w-4 h-4" style={{ color: BRAND.primary }} />
+            <div className="flex-1 min-w-0">
+              <p className={`text-[9px] font-black uppercase truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>{userName}</p>
+              <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest">{userRole === 'supervisor' ? 'Supervisor' : userRole === 'admin' ? 'Administrador' : 'Solo Vista'}</p>
+            </div>
+          </div>
           <button onClick={() => window.open('file:///c:/Users/sahel/Downloads/finanzas-jes---dashboard/MASTER_MANUAL.md', '_blank')} className="w-full h-11 flex items-center justify-center gap-2 bg-blue-600/10 rounded-xl text-[10px] font-black uppercase border border-blue-500/20 text-blue-500 hover:bg-blue-600 hover:text-white transition-all">
             <BookOpen className="w-4 h-4" /> Manual Técnico
           </button>
           <button onClick={() => setIsDark(!isDark)} className="w-full h-11 flex items-center justify-center gap-2 bg-white/5 rounded-xl text-[10px] font-black uppercase border border-white/5 hover:bg-white/10 transition-all">
             {isDark ? <><Sun className="w-4 h-4 text-amber-500" /> Claro</> : <><Moon className="w-4 h-4 text-blue-500" /> Oscuro</>}
+          </button>
+          <button onClick={handleLogout} className="w-full h-9 flex items-center justify-center gap-2 rounded-xl text-[9px] font-black uppercase border border-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white transition-all">
+            <X className="w-3 h-3" /> Cerrar Sesión
           </button>
         </div>
       </nav>

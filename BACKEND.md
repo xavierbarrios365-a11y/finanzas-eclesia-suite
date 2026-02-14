@@ -23,9 +23,9 @@ function onOpen() {
     .addItem('🔄 Sincronizar Todo (Reparar)', 'syncAllResponses')
     .addItem('💱 Actualizar Tasa BCV', 'actualizarTasaBCV')
     .addSeparator()
-    .addItem('�️ Reparar Datos (Fix 0 & #NUM!)', 'repararRegistrosErroneos')
+    .addItem('️ Reparar Datos (Fix 0 & #NUM!)', 'repararRegistrosErroneos')
     .addSeparator()
-    .addItem('�🕵️ Probar Telegram (Sonia + Asael)', 'probarTelegram')
+    .addItem('🕵️ Probar Telegram (Sonia + Asael)', 'probarTelegram')
     .addToUi();
 }
 
@@ -140,7 +140,8 @@ function onFormSubmit(e) {
     };
 
     // ID Failsafe: Evita #NUM! permanentemente
-    entry.id = Date.now();
+    const id = Date.now();
+    entry.id = id;
 
     console.log("Registro 360 PRO v3:", entry.desc, "| Monto:", entry.monto);
     registrarFila(entry);
@@ -270,7 +271,8 @@ function doPost(e) {
       met: data.met,
       monto: parseNum(data.m_orig || data.monto || 0),
       moneda: data.mon_orig || data.moneda || "USD",
-      tasa: parseNum(data.t_reg || data.tasa || 0)
+      tasa: parseNum(data.t_reg || data.tasa || 0),
+      action: data.action || 'new'
     };
     registrarFila(entry, false); // Alertar en Telegram (No silencioso) por defecto en Dashboard
     return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
@@ -369,47 +371,46 @@ function enviarAlertaTelegram(v, usd, ves = 0) {
     if (v.tipo === "Cambio Tasa") {
        msg = v.desc;
     } else {
+       // 1. SILENCIO EN EDICIÓN (Auditoría)
+       if (v.action === 'edit') return;
+
        const icono = String(v.tipo).toLowerCase().includes("ingreso") ? "💰" : "💸";
        const mAct = Math.abs(v.monto);
        const mUSD = Math.abs(usd);
        const mVES = Math.abs(ves);
        
+       // 2. TASA DINÁMICA (Prioriza la de la App)
+       const tasaAplicada = v.tasa || tasa;
+
        // Formato de Monto Principal
        const montoStr = v.moneda === "VES" 
           ? `${mAct.toLocaleString('es-VE')} VES (*$${mUSD.toFixed(2)}*)`
           : `$${mAct.toFixed(2)} (*${mVES.toLocaleString('es-VE')} VES*)`;
        
+       // 3. BALANCE DE CATEGORÍA ESPECÍFICA
+       const nCatBusqueda = String(v.cat || "General").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+       let catBalanceUSD = 0;
+       for (let key in balancesCatUSD) {
+         if (key === nCatBusqueda) {
+           catBalanceUSD = balancesCatUSD[key];
+           break;
+         }
+       }
+
        msg = `${icono} *${v.tipo || "Movimiento"} Registrado*\n`;
        msg += `──────────────\n`;
        msg += `📝 *Concepto:* ${v.desc || "Sin detalle"}\n`;
        msg += `📊 *Categoría:* ${v.cat || "General"}\n`;
        msg += `💵 *Monto:* ${montoStr}\n`;
        msg += `──────────────\n`;
-       msg += `📑 *Saldos por Categoría (USD / VES):*\n`;
-       
-       const catInteres = ["Ofrendas Generales", "Diezmos", "Pago de Luz", "Ofrendas Especiales", "Aporte"];
-       const normalize = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-       
-       catInteres.forEach(c => {
-         let bU = 0;
-         const nC = normalize(c);
-         // Buscamos coincidencia flexible
-         for (let key in balancesCatUSD) {
-           if (key.includes(nC) || nC.includes(key)) {
-             bU = balancesCatUSD[key];
-             break;
-           }
-         }
-         const bV = bU * tasa;
-         msg += `• ${c}: $${bU.toFixed(2)} (*${bV.toLocaleString('es-VE', {minimumFractionDigits:2})} VES*)\n`;
-       });
-
+       msg += `📑 *Saldo Categoría:* ${v.cat}\n`;
+       msg += `• Actual: $${catBalanceUSD.toFixed(2)} (*${(catBalanceUSD * tasaAplicada).toLocaleString('es-VE', {minimumFractionDigits:2})} VES*)\n`;
        msg += `──────────────\n`;
-       msg += `🏦 *TOTAL DISPONIBLE DISPONIBLE:*\n`;
+       msg += `🏦 *TOTAL DISPONIBLE:*\n`;
        msg += `💵 $${balanceTotalUSD.toFixed(2)}\n`;
        msg += `🇻🇪 ${balanceTotalVES.toLocaleString('es-VE', {minimumFractionDigits:2})} VES\n`;
        msg += `──────────────\n`;
-       msg += `📈 *Tasa Aplicada:* ${tasa.toFixed(2)} VES/$`;
+       msg += `📈 *Tasa Aplicada:* ${tasaAplicada.toFixed(2)} VES/$`;
     }
 
     chatids.forEach(id => {
