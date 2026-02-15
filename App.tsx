@@ -620,6 +620,13 @@ const App: React.FC = () => {
           {isAdmin && <NavBtn active={activeTab === 'audit'} onClick={() => setActiveTab('audit')} icon={<BadgeCheck />} label="Auditoría" isDark={isDark} />}
           {isAdmin && <NavBtn active={activeTab === 'bank'} onClick={() => setActiveTab('bank')} icon={<Landmark />} label="Datos Banco" isDark={isDark} />}
           <NavBtn active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} icon={<FileText />} label="Reportes" isDark={isDark} />
+          {/* Mobile Logout Button */}
+          <button
+            onClick={handleLogout}
+            className={`md:hidden flex-none w-14 flex items-center justify-center rounded-xl transition-all border ${isDark ? 'border-rose-500/20 text-rose-400 bg-rose-500/5 hover:bg-rose-500/10' : 'border-rose-200 text-rose-500 bg-rose-50 hover:bg-rose-100'}`}
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
 
         <div className="hidden md:block mt-auto p-4 border-t border-white/5 space-y-2">
