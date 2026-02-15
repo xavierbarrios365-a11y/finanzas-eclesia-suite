@@ -674,13 +674,13 @@ const App: React.FC = () => {
               </button>
             </div>
             <div className="flex items-center gap-1.5 md:gap-3">
-              {canEdit && (
+              {isAdmin && (
                 <>
                   <button onClick={() => setShowExchange(true)} className="flex items-center justify-center w-9 h-9 md:w-auto md:px-4 md:h-11 rounded-xl text-white transition-all hover:scale-105 shadow-lg active:scale-95" style={{ backgroundColor: BRAND.accent }}>
-                    <RefreshCw className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Intercambio</span>
+                    <RefreshCw className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Intercambio de Divisa</span>
                   </button>
                   <button onClick={() => window.open(FORM_URL, '_blank')} className="flex items-center justify-center w-9 h-9 md:w-auto md:px-4 md:h-11 rounded-xl text-white transition-all hover:scale-105 shadow-xl active:scale-95" style={{ backgroundColor: BRAND.primary }}>
-                    <PlusCircle className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Nuevo Asiento</span>
+                    <PlusCircle className="w-4 h-4" /> <span className="hidden md:inline font-black uppercase text-[10px] tracking-widest ml-2">Nuevo Ingreso/Egreso</span>
                   </button>
                 </>
               )}
@@ -813,7 +813,7 @@ const App: React.FC = () => {
                         <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Categoría</th>
                         <th className="px-10 py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Origen</th>
                         <th className="px-6 md:px-10 py-4 md:py-6 text-right text-slate-500 uppercase font-black tracking-widest text-[10px]">Equiv. USD</th>
-                        {activeTab === 'audit' && <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Acción</th>}
+                        {activeTab === 'audit' && canEdit && <th className="px-10 py-6 text-center text-slate-500 uppercase font-black tracking-widest text-[10px] hidden md:table-cell">Acción</th>}
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${isDark ? 'divide-white/[0.04]' : 'divide-slate-200'}`}>
