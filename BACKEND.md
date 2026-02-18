@@ -1,506 +1,567 @@
-
 /**
- * ═══════════════════════════════════════════════════════════════
- *  VEMEX Backend — Versión Industrial Segura v2.0
- * ═══════════════════════════════════════════════════════════════
- *  Seguridad: Token de acceso + Validación de datos + LockService
- * ═══════════════════════════════════════════════════════════════
+ * ELITE ADMIN SUITE v11.6 - ULTIMATE PRECISION & AUTO-TRIGGER
+ * Mapeo dinámico total, soporte de decimales latinos y auto-configuración de triggers.
  */
 
-const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
+// 🔒 CREDENCIALES (Inmunes a borrados)
+function guardarMisCredenciales() {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty("TELEGRAM_TOKEN", "8047121954:AAHhWY3s_YB9C33Ut2JpinhqGmv_cMPsYg8"); 
+  props.setProperty("TELEGRAM_CHAT_ID", "1009537014,7581655183"); // Soporte multi-ID
+  props.setProperty("TASA_ACTUAL", "40.5");
+  SpreadsheetApp.getUi().alert("✅ Credenciales guardadas con éxito (Multi-ID Activo).");
+}
 
-// ─── TOKEN DE SEGURIDAD ──────────────────────────────────────
-// Cambia este token y colócalo también en tu .env del frontend
-const API_TOKEN = "vemex-sec-2026-xK9mP4qR7tL2";
+const SHEET_NAME = "Base_Datos_Maestra"; 
+const FORM_SHEET_NAME = "ENTRADAS";
+const CAMBIOS_SHEET_NAME = "OPERACIONES_CAMBIO";
 
-function verificarToken(e) {
-  // En modo GAS embebido (iframe), no hay token — siempre autorizado
-  if (!e || !e.parameter) return true;
-  
-  const token = e.parameter.token || "";
-  if (token === API_TOKEN) return true;
-  
-  // Para POST, también verificar en el body
-  if (e.postData) {
-    try {
-      const body = JSON.parse(e.postData.contents);
-      if (body.token === API_TOKEN) return true;
-    } catch(err) {}
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('🏛️ Elite Suite')
+    .addItem('🔐 Guardar Mis Credenciales', 'guardarMisCredenciales')
+    .addItem('⚙️ Configurar Sistema (Triggers)', 'setupSystem')
+    .addItem('🔄 Sincronizar Todo (Reparar)', 'syncAllResponses')
+    .addItem('💱 Actualizar Tasa BCV', 'actualizarTasaBCV')
+    .addSeparator()
+    .addItem('️ Reparar Datos (Fix 0 & #NUM!)', 'repararRegistrosErroneos')
+    .addSeparator()
+    .addItem('🕵️ Probar Telegram (Sonia + Asael)', 'probarTelegram')
+    .addToUi();
+}
+
+/** 
+ * HELPER: Detector de columnas inteligente (Normalizado)
+ */
+function getMapping(headersRow) {
+  const normalize = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const headers = headersRow.map(normalize);
+  const find = (keys) => {
+    const kNormalized = keys.map(normalize);
+    return headers.findIndex(h => kNormalized.some(kn => h.includes(kn)));
+  };
+
+  return {
+    t: 0, 
+    f: find(["fecha"]),
+    tp: find(["tipo"]),
+    c: find(["cat"]),
+    d: find(["desc"]),
+    m: find(["metodo"]), 
+    a: find(["area", "fondo", "departamento"]),
+    mt: find(["monto"]),
+    mn: find(["moneda"]),
+    ts: find(["tasa"])
+  };
+}
+
+/** 
+ * SINCRONIZACIÓN MANUAL (RECONSTRUCCIÓN TOTAL)
+ */
+function syncAllResponses() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let shBD = ss.getSheetByName(SHEET_NAME);
+  let shForm = ss.getSheetByName(FORM_SHEET_NAME) || ss.getSheets()[0];
+
+  if (!shBD || !shForm) {
+    SpreadsheetApp.getUi().alert("❌ Error: No se encuentran las tablas.");
+    return;
   }
   
-  return false;
-}
+  const formValues = shForm.getDataRange().getValues();
+  if (formValues.length < 2) return;
 
-// ─── VALIDACIÓN HELPERS ──────────────────────────────────────
-function validar(data, reglas) {
-  if (!data || typeof data !== 'object') return 'Datos inválidos: se esperaba un objeto';
-  
-  for (var i = 0; i < reglas.length; i++) {
-    var r = reglas[i];
-    var campo = r.campo;
-    var valor = data[campo];
-    
-    if (r.requerido && (valor === undefined || valor === null || valor === '')) {
-      return 'Campo requerido: ' + campo;
-    }
-    
-    if (r.tipo === 'numero' && valor !== undefined && valor !== '' && valor !== null) {
-      var num = Number(valor);
-      if (isNaN(num)) return campo + ' debe ser un número válido';
-      if (r.min !== undefined && num < r.min) return campo + ' debe ser mayor o igual a ' + r.min;
-      if (r.max !== undefined && num > r.max) return campo + ' debe ser menor o igual a ' + r.max;
-    }
-    
-    if (r.tipo === 'texto' && valor !== undefined && valor !== '' && valor !== null) {
-      if (typeof valor !== 'string' || valor.trim().length === 0) return campo + ' debe ser texto válido';
-      if (r.maxLen && valor.length > r.maxLen) return campo + ' excede el máximo de ' + r.maxLen + ' caracteres';
-    }
-    
-    if (r.tipo === 'array' && r.requerido) {
-      if (!Array.isArray(valor) || valor.length === 0) return campo + ' debe contener al menos un elemento';
-    }
+  const idx = getMapping(formValues[0]);
+
+  if (idx.f === -1 || idx.mt === -1) {
+    SpreadsheetApp.getUi().alert("❌ Error de Mapeo: Columnas críticas no detectadas.");
+    return;
   }
+
+  const lastRow = shBD.getLastRow();
+  if (lastRow > 1) {
+    shBD.getRange(2, 1, shBD.getMaxRows() - 1, shBD.getMaxColumns()).clearContent();
+  }
+
+  let count = 0;
+  for (let i = 1; i < formValues.length; i++) {
+    const row = formValues[i];
+    const data = {
+      timestamp: row[0],
+      fecha: row[idx.f],
+      tipo: row[idx.tp],
+      cat: idx.c !== -1 ? row[idx.c] : "General",
+      desc: idx.d !== -1 ? row[idx.d] : "",
+      met: idx.m !== -1 ? row[idx.m] : "Efectivo",
+      area: idx.a !== -1 ? row[idx.a] : "General",
+      monto: parseNum(row[idx.mt]),
+      moneda: idx.mn !== -1 ? (String(row[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES") : "USD",
+      tasa: idx.ts !== -1 ? parseNum(row[idx.ts]) : 0
+    };
+    registrarFila(data, true); 
+    count++;
+  }
+  SpreadsheetApp.getUi().alert("✅ EXITO: " + count + " registros reparados.");
+}
+
+/** 
+ * EVENTO AUTOMÁTICO: Captura nuevas entradas del formulario
+ */
+function onFormSubmit(e) {
+  if (!e) return;
+  console.log("Formulario enviado. Procesando...");
   
-  return null; // sin errores
-}
-
-// ─── ID ÚNICO (anti-colisión) ────────────────────────────────
-function uid(prefijo) {
-  return prefijo + Date.now() + "-" + Math.random().toString(36).substr(2, 4);
-}
-
-// ─── LOCK PARA ESCRITURA ─────────────────────────────────────
-function conLock(fn) {
-  var lock = LockService.getScriptLock();
   try {
-    lock.waitLock(10000); // espera hasta 10s
-    var resultado = fn();
-    return resultado;
-  } catch (e) {
-    return { success: false, message: 'Servidor ocupado, intenta de nuevo: ' + e.toString() };
-  } finally {
-    lock.releaseLock();
-  }
-}
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const named = e.namedValues;
+    
+    // 🔥 MOTOR DE MAPEO ULTRA-ROBUSTO (v3 - Profesional)
+    const normalize = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
+    
+    const getV = (searchTerms) => {
+      if (!named) return "";
+      const normalizedSearch = searchTerms.map(normalize);
+      for (let key in named) {
+        const normalizedKey = normalize(key);
+        if (normalizedSearch.some(term => normalizedKey.includes(term))) {
+          return named[key][0];
+        }
+      }
+      return "";
+    };
 
-// ─── RUTAS HTTP ──────────────────────────────────────────────
-function doGet(e) {
-  if (!verificarToken(e)) {
-    return jsonResp({ error: 'No autorizado. Token inválido.' });
-  }
-  
-  var action = e.parameter.action;
-  try {
-    switch (action) {
-      case 'getKPIs': return jsonResp(getKPIs());
-      case 'getMateriales': return jsonResp(getDataMateriales());
-      case 'getProyectos': return jsonResp(getDataProyectos());
-      case 'getClientes': return jsonResp(getClientes());
-      case 'getMovimientos': return jsonResp(getMovimientos());
-      case 'getCotizaciones': return jsonResp(getCotizaciones());
-      default: return jsonResp({ error: 'Acción no válida' });
-    }
+    const entry = {
+      timestamp: e.values ? e.values[0] : new Date(), 
+      fecha: getV(["fechatransaccion", "fecha"]), 
+      tipo: getV(["tipomovimiento", "tipo"]), 
+      cat: getV(["categoría"]), // EXCLUIDO "cat" para evitar conflicto con "marcatemporal"
+      desc: getV(["descripciondetalle", "desc"]), 
+      met: getV(["metodopago", "metodo"]), 
+      area: getV(["area", "fondo", "departamento"]),
+      monto: parseNum(getV(["monto"])), 
+      moneda: getV(["moneda", "monedatransaccion"]).toUpperCase().includes("USD") ? "USD" : "VES", 
+      tasa: parseNum(getV(["tasa", "tasacambio"]))
+    };
+
+    // ID Failsafe: Evita #NUM! permanentemente
+    const id = Date.now();
+    entry.id = id;
+
+    console.log("Registro 360 PRO v3:", entry.desc, "| Monto:", entry.monto);
+    registrarFila(entry);
   } catch (err) {
-    return jsonResp({ error: err.toString() });
+    console.error("Error Crítico onFormSubmit:", err.toString());
+  }
+}
+
+/** Procesa números con formato latino (1.234,56) o internacional (1,234.56) */
+function parseNum(v) {
+  if (typeof v === 'number') return v;
+  let s = String(v || "0").replace(/[^\d,.-]/g, "").trim();
+  if (s.includes(",") && s.includes(".")) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, ""); 
+  } else if (s.includes(",")) s = s.replace(",", ".");
+  return parseFloat(s) || 0;
+}
+
+function registrarFila(v, silent = false) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+    
+    const tipoStr = String(v.tipo || "").toLowerCase();
+    let fObj;
+    
+    if (v.fecha instanceof Date) {
+      fObj = v.fecha;
+      fObj.setHours(12, 0, 0, 0);
+    } else if (typeof v.fecha === 'string' && v.fecha.includes('/')) {
+      let parts = v.fecha.split('/');
+      fObj = parts.length === 3 ? new Date(parts[2], parts[1] - 1, parts[0], 12, 0, 0) : new Date(v.fecha);
+    } else {
+      fObj = new Date(v.fecha || new Date());
+      fObj.setHours(12, 0, 0, 0);
+    }
+
+    const mesNombres = ["01-ene", "02-feb", "03-mar", "04-abr", "05-may", "06-jun", "07-jul", "08-ago", "09-sep", "10-oct", "11-nov", "12-dic"];
+    const tasa = v.tasa || Number(PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL")) || 40.5;
+    
+    let factor = 0;
+    if (/ingreso|abono|entrada|inicial|diezmo|ofrenda/i.test(tipoStr)) factor = 1;
+    else factor = -1; // Por defecto es egreso si no es ingreso
+    
+    const absMonto = Math.abs(v.monto);
+    // 🔥 PRECISIÓN TOTAL: Los dólares NO suman Bolívares. Aislamiento total solicitado.
+    const isUSD = String(v.moneda || "").toUpperCase().includes("USD");
+    
+    // Si es USD, el total de bolívares es 0 (No afecta el balance VES). Si es VES, el total de USD es la conversión.
+    const usdEq = v.forced_usd !== undefined ? v.forced_usd : Number((isUSD ? absMonto * factor : (absMonto / tasa) * factor).toFixed(2));
+    const vesEq = v.forced_ves !== undefined ? v.forced_ves : Number((isUSD ? 0 : (absMonto * factor)).toFixed(2));
+
+    // ID Failsafe: Siempre numérico
+    const idValue = v.id || Date.now();
+
+    // LÓGICA DE ACTUALIZACIÓN: Buscar si el ID ya existe
+    const data = sh.getDataRange().getValues();
+    let rowIdx = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] == idValue) {
+        rowIdx = i + 1;
+        break;
+      }
+    }
+
+    const rowData = [
+      idValue, 
+      Utilities.formatDate(fObj, "GMT-4", "dd/MM/yyyy"), 
+      fObj.getFullYear(), 
+      "Q" + (Math.floor(fObj.getMonth() / 3) + 1), 
+      mesNombres[fObj.getMonth()], 
+      v.tipo, 
+      v.cat, 
+      v.desc, 
+      v.met, 
+      v.area || "General",
+      v.monto, 
+      v.moneda, 
+      tasa, 
+      usdEq, 
+      vesEq
+    ];
+
+    if (rowIdx !== -1) {
+      sh.getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
+    } else {
+      sh.appendRow(rowData);
+    }
+    
+    if (!silent) enviarAlertaTelegram(v, usdEq, vesEq); // Pasar VES Eq para reportes duales
+  } catch (e) {
+    console.error("Error en registrarFila:", e.toString());
+  }
+}
+
+function getCredential(key) { return PropertiesService.getScriptProperties().getProperty(key); }
+
+function doGet(e) {
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    if (!sh) return ContentService.createTextOutput("Sheet not found");
+    const data = sh.getDataRange().getValues();
+    return ContentService.createTextOutput(JSON.stringify({success: true, data: data.map(r => r.map(c => (c instanceof Date) ? c.toISOString() : c))})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 function doPost(e) {
-  if (!verificarToken(e)) {
-    return jsonResp({ success: false, message: 'No autorizado. Token inválido.' });
+  try {
+    const data = JSON.parse(e.postData.contents);
+    if (data.action === "cambio") {
+      registrarCambio(data);
+      return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+    }
+    if (data.action === "updateRate") {
+      const nuevaTasa = actualizarTasaBCV(true); // Ejecución silenciosa desde web
+      return ContentService.createTextOutput(JSON.stringify({success: true, tasa: nuevaTasa})).setMimeType(ContentService.MimeType.JSON);
+    }
+    const entry = {
+      id: data.id,
+      timestamp: data.id,
+      fecha: data.fecha || new Date(),
+      tipo: data.tipo,
+      cat: data.cat,
+      desc: data.desc,
+      met: data.met,
+      area: data.area || "General",
+      monto: parseNum(data.m_orig || data.monto || 0),
+      moneda: data.mon_orig || data.moneda || "USD",
+      tasa: parseNum(data.t_reg || data.tasa || 0),
+      action: data.action || 'new'
+    };
+    registrarFila(entry, false); // Alertar en Telegram (No silencioso) por defecto en Dashboard
+    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function registrarCambio(v) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(CAMBIOS_SHEET_NAME) || ss.insertSheet(CAMBIOS_SHEET_NAME);
+  if (sh.getLastRow() === 0) {
+    const h = ["ID", "Fecha", "Tipo", "Monto Sale", "Moneda Sale", "Monto Entra", "Moneda Entra", "Tasa Mercado", "Desc"];
+    sh.getRange(1, 1, 1, h.length).setValues([h]).setBackground("#0f172a").setFontColor("white");
+  }
+  const row = [v.id, v.fecha, v.tipo_cambio, v.monto_sale, v.moneda_sale, v.monto_entra, v.moneda_entra, v.tasa_mercado, v.desc];
+  sh.appendRow(row);
+
+  registrarFila({
+    id: v.id + "_M",
+    timestamp: v.id,
+    fecha: v.fecha,
+    tipo: "Permuta",
+    cat: "Cambio de Divisa",
+    desc: v.desc || `Cambio ${v.monto_sale}${v.moneda_sale} -> ${v.monto_entra}${v.moneda_entra}`,
+    met: "Transferencia",
+    monto: 0,
+    moneda: "USD",
+    tasa: v.tasa_mercado,
+    forced_usd: v.moneda_sale === "USD" ? -v.monto_sale : v.monto_entra,
+    forced_ves: v.moneda_sale === "VES" ? -v.monto_sale : v.monto_entra
+  }, false); // Notificar permuta
+}
+
+function actualizarTasaBCV(silentMode = false) {
+  try {
+    const res = UrlFetchApp.fetch("https://ve.dolarapi.com/v1/dolares/oficial");
+    const json = JSON.parse(res.getContentText());
+    if (json.promedio) {
+      const tasaVieja = PropertiesService.getScriptProperties().getProperty("TASA_ACTUAL");
+      const nuevaTasa = json.promedio;
+      if (Number(tasaVieja) !== Number(nuevaTasa)) {
+        PropertiesService.getScriptProperties().setProperty("TASA_ACTUAL", nuevaTasa);
+        // Notificar cambio de tasa solo si cambió
+        enviarAlertaTelegram({tipo: "Cambio Tasa", desc: `🔄 *Tasa BCV Actualizada*\nDe: ${tasaVieja} ➔ A: ${nuevaTasa} VES`}, 0);
+      }
+      
+      if (!silentMode) SpreadsheetApp.getUi().alert("✅ Tasa actualizada a: " + nuevaTasa);
+      return nuevaTasa;
+    }
+  } catch (e) {
+    console.error("Error actualización tasa:", e.toString());
+  }
+  return null;
+}
+
+function enviarAlertaTelegram(v, usd, ves = 0) {
+  try {
+    const token = getCredential("TELEGRAM_TOKEN");
+    const chatids = (getCredential("TELEGRAM_CHAT_ID") || "").split(",");
+    if (!token || token.includes("TU_TOKEN") || chatids.length === 0) return;
+    
+    const tasa = Number(getCredential("TASA_ACTUAL")) || 40.5;
+
+    // --- CÁLCULO DE BALANCES QUIRÚRGICO ---
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sh = ss.getSheetByName(SHEET_NAME);
+    let balanceTotalUSD = 0;
+    let balanceTotalVES = 0;
+    const balancesCatUSD = {};
+
+    if (sh) {
+      const lastRow = sh.getLastRow();
+      if (lastRow > 1) {
+        // Obtenemos Cat(7), USD(13), VES(14)
+        const data = sh.getRange(2, 7, lastRow - 1, 8).getValues(); 
+        data.forEach(row => {
+          const cat = String(row[0] || "General").trim();
+          const u = parseFloat(row[6]) || 0; // Col 13
+          const v = parseFloat(row[7]) || 0; // Col 14
+          
+          balanceTotalUSD += u;
+          // 🔥 AISLAMIENTO TOTAL EN TELEGRAM: Si la moneda es USD, NO suma a VES.
+          const mon = String(row[4] || "USD").toUpperCase(); // Col 11 (Moneda)
+          if (!mon.includes("USD") && !mon.includes("$")) {
+            balanceTotalVES += v;
+          }
+          
+          const nCat = String(cat).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          balancesCatUSD[nCat] = (balancesCatUSD[nCat] || 0) + u;
+        });
+      }
+    }
+
+    let msg = "";
+    if (v.tipo === "Cambio Tasa") {
+       msg = v.desc;
+    } else {
+       // 1. SILENCIO EN EDICIÓN (Auditoría)
+       if (v.action === 'edit') return;
+
+       const icono = String(v.tipo).toLowerCase().includes("ingreso") ? "💰" : "💸";
+       const mAct = Math.abs(v.monto);
+       const mUSD = Math.abs(usd);
+       const mVES = Math.abs(ves);
+       
+       // 2. TASA DINÁMICA (Prioriza la de la App)
+       const tasaAplicada = v.tasa || tasa;
+
+       // Formato de Monto Principal
+       const montoStr = v.moneda === "VES" 
+          ? `${mAct.toLocaleString('es-VE')} VES (*$${mUSD.toFixed(2)}*)`
+          : `$${mAct.toFixed(2)} (*${mVES.toLocaleString('es-VE')} VES*)`;
+       
+       // 3. BALANCE DE CATEGORÍA ESPECÍFICA
+       const nCatBusqueda = String(v.cat || "General").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+       let catBalanceUSD = 0;
+       for (let key in balancesCatUSD) {
+         if (key === nCatBusqueda) {
+           catBalanceUSD = balancesCatUSD[key];
+           break;
+         }
+       }
+
+       msg = `${icono} *${v.tipo || "Movimiento"} Registrado*\n`;
+       msg += `──────────────\n`;
+       msg += `📝 *Concepto:* ${v.desc || "Sin detalle"}\n`;
+       msg += `📊 *Categoría:* ${v.cat || "General"}\n`;
+       msg += `💵 *Monto:* ${montoStr}\n`;
+       msg += `──────────────\n`;
+       msg += `📑 *Saldo Categoría:* ${v.cat}\n`;
+       msg += `• Actual: $${catBalanceUSD.toFixed(2)} (*${(catBalanceUSD * tasaAplicada).toLocaleString('es-VE', {minimumFractionDigits:2})} VES*)\n`;
+       msg += `──────────────\n`;
+       msg += `🏦 *TOTAL DISPONIBLE:*\n`;
+       msg += `💵 $${balanceTotalUSD.toFixed(2)}\n`;
+       msg += `🇻🇪 ${balanceTotalVES.toLocaleString('es-VE', {minimumFractionDigits:2})} VES\n`;
+       msg += `──────────────\n`;
+       msg += `📈 *Tasa Aplicada:* ${tasaAplicada.toFixed(2)} VES/$`;
+    }
+
+    chatids.forEach(id => {
+      if (id.trim()) {
+        try {
+          UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${id.trim()}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`);
+        } catch(e) { console.error("Error enviando a ID:", id); }
+      }
+    });
+  } catch (e) {
+    console.error("Error envío Telegram:", e.toString());
+  }
+}
+
+function probarTelegram() {
+  const token = getCredential("TELEGRAM_TOKEN");
+  const chatids = (getCredential("TELEGRAM_CHAT_ID") || "").split(",");
+  if (!token || chatids.length === 0) {
+    SpreadsheetApp.getUi().alert("❌ No hay credenciales configuradas.");
+    return;
+  }
+
+  chatids.forEach(id => {
+    if (id.trim()) {
+      const msg = `🕵️ *Prueba de Conexión Élite*\nID: ${id.trim()}\nEstado: ✅ Activo y Recibiendo.`;
+      try {
+        UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${id.trim()}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`);
+      } catch(e) { 
+        console.error("Error en test para ID:", id); 
+      }
+    }
+  });
+  
+  SpreadsheetApp.getUi().alert("✅ Mensajes de prueba enviados. Verifica Telegram (Sonia y Asael).");
+}
+
+function setupSystem() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Configurar Base de Datos Maestra
+  let sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+  const headers = ["ID", "Fecha", "Año", "Q", "Mes", "Tipo", "Cat", "Desc", "Metodo", "Area", "Monto Orig", "Moneda", "Tasa", "Total USD", "Total VES"];
+  sh.getRange(1, 1, 1, headers.length).setValues([headers]).setBackground("#1e293b").setFontColor("white").setFontWeight("bold");
+  sh.setFrozenRows(1);
+
+  // 2. Configurar Registro de Cambios
+  let shC = ss.getSheetByName(CAMBIOS_SHEET_NAME) || ss.insertSheet(CAMBIOS_SHEET_NAME);
+  const hC = ["ID", "Fecha", "Tipo", "Monto Sale", "Moneda Sale", "Monto Entra", "Moneda Entra", "Tasa Mercado", "Desc"];
+  shC.getRange(1, 1, 1, hC.length).setValues([hC]).setBackground("#0f172a").setFontColor("white").setFontWeight("bold");
+  shC.setFrozenRows(1);
+
+  // 3. AUTO-CONFIGURACIÓN DE TRIGGERS
+  const triggers = ScriptApp.getProjectTriggers();
+  let formTriggerExists = false;
+  
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'onFormSubmit') {
+      formTriggerExists = true;
+      break;
+    }
   }
   
-  try {
-    var contents = JSON.parse(e.postData.contents);
-    var action = contents.action;
-    var data = contents.data;
-    var result;
-
-    switch (action) {
-      case 'agregarNuevoMaterial': result = agregarNuevoMaterial(data); break;
-      case 'actualizarMaterial': result = actualizarMaterial(data); break;
-      case 'eliminarMaterial': result = eliminarMaterial(data); break;
-      case 'registrarMovimiento': result = registrarMovimiento(data); break;
-      case 'actualizarEstatusProyecto': result = actualizarEstatusProyecto(data); break;
-      case 'agregarNuevoProyecto': result = agregarNuevoProyecto(data); break;
-      case 'eliminarProyecto': result = eliminarProyecto(data); break;
-      case 'guardarCotizacion': result = guardarCotizacionCompleta(data); break;
-      case 'actualizarEstatusCotizacion': result = actualizarEstatusCotizacion(data); break;
-      case 'eliminarCotizacion': result = eliminarCotizacion(data); break;
-      case 'eliminarMovimiento': result = eliminarMovimiento(data); break;
-      default: result = { success: false, message: 'Acción desconocida: ' + action };
-    }
-    return jsonResp(result);
-  } catch (err) {
-    return jsonResp({ success: false, message: err.toString() });
+  if (!formTriggerExists) {
+    ScriptApp.newTrigger('onFormSubmit')
+      .forSpreadsheet(ss)
+      .onFormSubmit()
+      .create();
+    console.log("Trigger onFormSubmit creado con éxito.");
   }
+
+  SpreadsheetApp.getUi().alert("✅ Sistema Configurado. Tablas creadas y Triggers activados automáticamente.");
 }
 
-function jsonResp(data) {
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
-}
+/**
+ * 🛠️ HERRAMIENTA DE RECUPERACIÓN PROFESIONAL
+ * Corrige registros con #NUM! o Monto = 0 cruzando datos con la hoja de respuestas original.
+ */
+function repararRegistrosErroneos() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const shBD = ss.getSheetByName(SHEET_NAME);
+  const shForm = ss.getSheetByName(FORM_SHEET_NAME) || ss.getSheets()[0];
+  
+  if (!shBD || !shForm) return;
+  
+  const bdData = shBD.getDataRange().getValues();
+  const formData = shForm.getDataRange().getValues();
+  const formHeaders = formData[0];
+  
+  // Mapeo robusto para el buscador
+  const normalize = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "").trim();
+  const findH = (terms) => {
+    const normTerms = terms.map(normalize);
+    return formHeaders.findIndex(h => normTerms.some(t => normalize(h).includes(t)));
+  };
 
-// ═══════════════════════════════════════════════════════════════
-//  LECTURA (sin lock, sin validación — solo consultas)
-// ═══════════════════════════════════════════════════════════════
+  const idx = {
+    f: findH(["fechatransaccion", "fecha"]),
+    tp: findH(["tipomovimiento", "tipo"]),
+    c: findH(["categoría"]), // Búsqueda exacta para evitar conflicto con marcatemporal
+    d: findH(["descripciondetalle", "desc"]),
+    m: findH(["metodopago", "metodo"]),
+    a: findH(["area", "fondo", "departamento"]),
+    mt: findH(["monto"]),
+    mn: findH(["moneda", "monedatransaccion"]),
+    ts: findH(["tasa", "tasacambio"])
+  };
 
-function getKPIs() {
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var now = new Date();
-  var cVals = ss.getSheetByName("BD_CLIENTES").getDataRange().getValues();
-  var porCobrar = cVals.slice(1).reduce(function(acc, r) { return acc + (Number(r[6]) || 0); }, 0);
-  var pVals = ss.getSheetByName("BD_PROYECTOS").getDataRange().getValues();
-  var activos = 0, retrasos = 0;
-  pVals.slice(1).forEach(function(r) {
-    if (r[5] !== "Terminado" && r[5] !== "") {
-      activos++;
-      var fE = r[4] instanceof Date ? r[4] : new Date(r[4]);
-      if (fE < now && r[4] !== "") retrasos++;
-    }
-  });
-  var fVals = ss.getSheetByName("BD_FINANZAS").getDataRange().getValues();
-  var gastosMes = fVals.slice(1).reduce(function(acc, r) {
-    var f = r[1] instanceof Date ? r[1] : new Date(r[1]);
-    var t = (r[2] || "").toString().toLowerCase();
-    if ((t === "egreso" || t === "gasto") && f.getMonth() === now.getMonth()) return acc + (Number(r[4]) || 0);
-    return acc;
-  }, 0);
-  var mVals = ss.getSheetByName("BD_MATERIALES").getDataRange().getValues();
-  var stockCritico = mVals.slice(1).filter(function(r) { return (Number(r[6]) || 0) <= (Number(r[5]) || 0); }).length;
+  let fixedCount = 0;
 
-  // Cotizaciones metrics
-  var cotizacionesActivas = 0, valorCotizaciones = 0;
-  try {
-    var cotSheet = ss.getSheetByName("BD_COTIZACIONES");
-    if (cotSheet) {
-      var cotVals = cotSheet.getDataRange().getValues();
-      cotVals.slice(1).forEach(function(r) {
-        if (r[9] === 'Pendiente' || r[9] === 'Aprobada') {
-          cotizacionesActivas++;
-          valorCotizaciones += Number(r[8]) || 0;
-        }
+  for (let i = 1; i < bdData.length; i++) {
+    const row = bdData[i];
+    // CRITERIO DE ERROR: ID malo, Monto 0, descripción vacía o CATEGORÍA QUE ES FECHA (ISO)
+    const catStr = String(row[6] || "");
+    const catIsFecha = catStr.includes("2026") || catStr.includes("T") || catStr.includes(":") || catStr.includes("Z");
+    const isError = row[0] === "#NUM!" || row[9] === 0 || row[7] === "" || String(row[0]).includes("Infinity") || catIsFecha;
+    
+    if (isError) {
+      // Intentar buscar en el formulario por fecha/timestamp (col 2 en BD es Fecha dd/mm/yyyy)
+      const bdFecha = row[1];
+      const match = formData.find(fRow => {
+        // Comparación simple por fecha string o por fecha objeto
+        const fCore = fRow[idx.f];
+        const isMatch = fCore == bdFecha || (fCore instanceof Date && Utilities.formatDate(fCore, "GMT-4", "dd/MM/yyyy") == bdFecha);
+        // Si no hay match por fecha perfecta, intentar por ID (que a veces es el timestamp)
+        return isMatch;
       });
-    }
-  } catch(e) {}
 
-  return { porCobrar: porCobrar, proyectosActivos: activos, gastosMes: gastosMes, retrasosCriticos: retrasos, stockBajoCount: stockCritico, cotizacionesActivas: cotizacionesActivas, valorCotizaciones: valorCotizaciones };
-}
-
-function getDataMateriales() {
-  var vals = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_MATERIALES").getDataRange().getValues();
-  return vals.slice(1).map(function(r) {
-    return {
-      id: r[0].toString(), name: r[1], category: (r[2] || "otros").toLowerCase(), unit: r[3],
-      price: Number(r[4]) || 0, stockVal: Number(r[6]) || 0, stockMin: Number(r[5]) || 0,
-      stock: Number(r[6]) <= Number(r[5]) ? (Number(r[6]) <= 0 ? 'none' : 'low') : 'high',
-      image: "https://picsum.photos/seed/" + r[0] + "/200/200"
-    };
-  });
-}
-
-function getDataProyectos() {
-  var vals = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_PROYECTOS").getDataRange().getValues();
-  return vals.slice(1).map(function(r) {
-    return {
-      id: r[0].toString(), name: r[2], client: "Cliente " + r[1], dueDate: r[4], status: r[5] || "Por Cotizar",
-      type: r[6] || "METAL"
-    };
-  });
-}
-
-function getClientes() {
-  var vals = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_CLIENTES").getDataRange().getValues();
-  return vals.slice(1).map(function(r) { return { id: r[0], name: r[1], phone: r[2] || "S/T", balance: Number(r[6]) || 0 }; });
-}
-
-function getMovimientos() {
-  var vals = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_FINANZAS").getDataRange().getValues();
-  return vals.slice(1).reverse().slice(0, 15).map(function(r) {
-    return {
-      id: r[0], date: r[1], description: r[3], amount: Number(r[4]) || 0,
-      type: (r[2] || "").toString().toLowerCase() === "ingreso" ? "income" : "expense"
-    };
-  });
-}
-
-function getCotizaciones() {
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var shCot = ss.getSheetByName("BD_COTIZACIONES");
-  if (!shCot) return [];
-  var vals = shCot.getDataRange().getValues();
-  var clientMap = {};
-  try {
-    var cVals = ss.getSheetByName("BD_CLIENTES").getDataRange().getValues();
-    cVals.slice(1).forEach(function(r) { clientMap[r[0]] = r[1]; });
-  } catch(e) {}
-  return vals.slice(1).reverse().map(function(r) {
-    return {
-      id: r[0], clienteId: r[1],
-      clienteNombre: clientMap[r[1]] || r[1] || 'Cliente Particular',
-      tipoTrabajo: r[2] || 'No especificado',
-      fecha: r[3] instanceof Date ? r[3].toISOString() : String(r[3]),
-      vigencia: r[4],
-      subtotalMateriales: Number(r[5]) || 0, manoObra: Number(r[6]) || 0,
-      extras: Number(r[7]) || 0, total: Number(r[8]) || 0,
-      estado: r[9] || 'Pendiente'
-    };
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  ESCRITURA (con validación + LockService)
-// ═══════════════════════════════════════════════════════════════
-
-function guardarCotizacionCompleta(data) {
-  var err = validar(data, [
-    { campo: 'tipoTrabajo', requerido: true, tipo: 'texto' },
-    { campo: 'subtotalMateriales', requerido: true, tipo: 'numero', min: 0 },
-    { campo: 'manoObra', requerido: true, tipo: 'numero', min: 0 },
-    { campo: 'totalFinal', requerido: true, tipo: 'numero', min: 0 },
-    { campo: 'partidas', requerido: true, tipo: 'array' }
-  ]);
-  if (err) return { success: false, message: err };
-
-  return conLock(function() {
-    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    var shCabecera = ss.getSheetByName("BD_COTIZACIONES");
-    var shDetalle = ss.getSheetByName("DETALLE_COTIZACION");
-    
-    var idCot = uid("COT-");
-    var fecha = new Date();
-    
-    shCabecera.appendRow([
-      idCot,
-      data.clienteId || "VAR-001",
-      data.tipoTrabajo,
-      fecha,
-      15,
-      Number(data.subtotalMateriales) || 0,
-      Number(data.manoObra) || 0,
-      Number(data.gastosExtra) || 0,
-      Number(data.totalFinal) || 0,
-      "Pendiente"
-    ]);
-    
-    if (shDetalle && Array.isArray(data.partidas)) {
-      data.partidas.forEach(function(p, idx) {
-        shDetalle.appendRow([
-          idCot + "-D" + (idx + 1),
-          idCot,
-          p.idMaterial || 'SIN_ASIGNAR',
-          Number(p.cantidad) || 0,
-          Number(p.precioUnitario) || 0,
-          Number(p.totalLinea) || 0
-        ]);
-      });
-    }
-    
-    return { success: true, id: idCot };
-  });
-}
-
-function actualizarMaterial(data) {
-  var err = validar(data, [
-    { campo: 'id', requerido: true, tipo: 'texto' },
-    { campo: 'nombre', requerido: true, tipo: 'texto', maxLen: 100 },
-    { campo: 'precio', requerido: true, tipo: 'numero', min: 0, max: 9999999 },
-    { campo: 'stock', requerido: true, tipo: 'numero', min: 0 }
-  ]);
-  if (err) return { success: false, message: err };
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_MATERIALES");
-    var vals = sheet.getDataRange().getValues();
-    for (var i = 1; i < vals.length; i++) {
-      if (vals[i][0].toString() === data.id.toString()) {
-        sheet.getRange(i + 1, 2, 1, 6).setValues([[data.nombre, data.categoria || 'otros', data.unidad || 'Pza', Number(data.precio), Number(data.stockMin) || 5, Number(data.stock)]]);
-        return { success: true };
+      if (match) {
+        const entry = {
+          id: row[0] === "#NUM!" || String(row[0]).includes("Infinity") ? Date.now() + i : row[0],
+          timestamp: match[0],
+          fecha: match[idx.f],
+          tipo: match[idx.tp],
+          cat: match[idx.c],
+          desc: match[idx.d],
+          met: match[idx.m],
+          area: idx.a !== -1 ? match[idx.a] : "General",
+          monto: parseNum(match[idx.mt]),
+          moneda: String(match[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES",
+          tasa: parseNum(match[idx.ts])
+        };
+        registrarFila(entry, true); // Silent mode
+        fixedCount++;
       }
     }
-    return { success: false, message: 'Material no encontrado: ' + data.id };
-  });
-}
-
-function actualizarEstatusProyecto(data) {
-  var err = validar(data, [
-    { campo: 'id', requerido: true, tipo: 'texto' },
-    { campo: 'nuevoEstatus', requerido: true, tipo: 'texto' }
-  ]);
-  if (err) return { success: false, message: err };
-
-  var estatusValidos = ['Por Cotizar', 'En Producción', 'Terminado'];
-  if (estatusValidos.indexOf(data.nuevoEstatus) === -1) {
-    return { success: false, message: 'Estatus no válido. Opciones: ' + estatusValidos.join(', ') };
   }
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_PROYECTOS");
-    var vals = sheet.getDataRange().getValues();
-    for (var i = 1; i < vals.length; i++) {
-      if (vals[i][0].toString() === data.id.toString()) {
-        sheet.getRange(i + 1, 6).setValue(data.nuevoEstatus);
-        return { success: true };
-      }
-    }
-    return { success: false, message: 'Proyecto no encontrado' };
-  });
-}
-
-function registrarMovimiento(data) {
-  var err = validar(data, [
-    { campo: 'monto', requerido: true, tipo: 'numero', min: 0.01, max: 99999999 },
-    { campo: 'concepto', requerido: true, tipo: 'texto', maxLen: 200 },
-    { campo: 'tipo', requerido: true, tipo: 'texto' }
-  ]);
-  if (err) return { success: false, message: err };
-
-  var tiposValidos = ['Egreso', 'Ingreso'];
-  if (tiposValidos.indexOf(data.tipo) === -1) {
-    return { success: false, message: 'Tipo no válido. Opciones: Egreso, Ingreso' };
-  }
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_FINANZAS");
-    sheet.appendRow([uid("FIN-"), new Date(), data.tipo, data.concepto.trim(), Number(data.monto), "Efectivo", 0]);
-    return { success: true };
-  });
-}
-
-function agregarNuevoMaterial(data) {
-  var err = validar(data, [
-    { campo: 'nombre', requerido: true, tipo: 'texto', maxLen: 100 },
-    { campo: 'precio', requerido: true, tipo: 'numero', min: 0, max: 9999999 },
-    { campo: 'stock', requerido: true, tipo: 'numero', min: 0 }
-  ]);
-  if (err) return { success: false, message: err };
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_MATERIALES");
-    var id = uid("MAT-");
-    sheet.appendRow([id, data.nombre.trim(), data.categoria || 'otros', data.unidad || 'Pza', Number(data.precio), 5, Number(data.stock)]);
-    return { success: true, id: id };
-  });
-}
-
-function eliminarMaterial(data) {
-  var err = validar(data, [
-    { campo: 'id', requerido: true, tipo: 'texto' }
-  ]);
-  if (err) return { success: false, message: err };
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_MATERIALES");
-    var vals = sheet.getDataRange().getValues();
-    for (var i = 1; i < vals.length; i++) {
-      if (vals[i][0].toString() === data.id.toString()) {
-        sheet.deleteRow(i + 1);
-        return { success: true };
-      }
-    }
-    return { success: false, message: 'Material no encontrado' };
-  });
-}
-
-function agregarNuevoProyecto(data) {
-  var err = validar(data, [
-    { campo: 'nombre', requerido: true, tipo: 'texto', maxLen: 150 }
-  ]);
-  if (err) return { success: false, message: err };
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_PROYECTOS");
-    var id = uid("PRY-");
-    sheet.appendRow([
-      id,
-      data.clienteId || "VAR-001",
-      data.nombre.trim(),
-      new Date(),
-      data.fechaEntrega ? new Date(data.fechaEntrega) : "",
-      data.estatus || "Por Cotizar",
-      data.tipo || "METAL"
-    ]);
-    return { success: true, id: id };
-  });
-}
-
-function eliminarProyecto(data) {
-  var err = validar(data, [
-    { campo: 'id', requerido: true, tipo: 'texto' }
-  ]);
-  if (err) return { success: false, message: err };
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_PROYECTOS");
-    var vals = sheet.getDataRange().getValues();
-    for (var i = 1; i < vals.length; i++) {
-      if (vals[i][0].toString() === data.id.toString()) {
-        sheet.deleteRow(i + 1);
-        return { success: true };
-      }
-    }
-    return { success: false, message: 'Proyecto no encontrado' };
-  });
-}
-
-function actualizarEstatusCotizacion(data) {
-  var err = validar(data, [
-    { campo: 'id', requerido: true, tipo: 'texto' },
-    { campo: 'nuevoEstado', requerido: true, tipo: 'texto' }
-  ]);
-  if (err) return { success: false, message: err };
-
-  var estadosValidos = ['Pendiente', 'Aprobada', 'Rechazada', 'Vencida'];
-  if (estadosValidos.indexOf(data.nuevoEstado) === -1) {
-    return { success: false, message: 'Estado no válido. Opciones: ' + estadosValidos.join(', ') };
-  }
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_COTIZACIONES");
-    var vals = sheet.getDataRange().getValues();
-    for (var i = 1; i < vals.length; i++) {
-      if (vals[i][0].toString() === data.id.toString()) {
-        sheet.getRange(i + 1, 10).setValue(data.nuevoEstado);
-        return { success: true };
-      }
-    }
-    return { success: false, message: 'Cotización no encontrada' };
-  });
-}
-
-function eliminarCotizacion(data) {
-  var err = validar(data, [
-    { campo: 'id', requerido: true, tipo: 'texto' }
-  ]);
-  if (err) return { success: false, message: err };
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_COTIZACIONES");
-    var vals = sheet.getDataRange().getValues();
-    for (var i = 1; i < vals.length; i++) {
-      if (vals[i][0].toString() === data.id.toString()) {
-        sheet.deleteRow(i + 1);
-        return { success: true };
-      }
-    }
-    return { success: false, message: 'Cotización no encontrada' };
-  });
-}
-
-function eliminarMovimiento(data) {
-  var err = validar(data, [
-    { campo: 'id', requerido: true, tipo: 'texto' }
-  ]);
-  if (err) return { success: false, message: err };
-
-  return conLock(function() {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("BD_FINANZAS");
-    var vals = sheet.getDataRange().getValues();
-    for (var i = 1; i < vals.length; i++) {
-      if (vals[i][0].toString() === data.id.toString()) {
-        sheet.deleteRow(i + 1);
-        return { success: true };
-      }
-    }
-    return { success: false, message: 'Movimiento no encontrado' };
-  });
+  
+  SpreadsheetApp.getUi().alert("✅ Recuperación completada: " + fixedCount + " filas reparadas automáticamente.");
 }

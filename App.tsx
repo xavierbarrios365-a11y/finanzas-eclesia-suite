@@ -211,6 +211,7 @@ const App: React.FC = () => {
           t: f("tasa"),
           usd: f("total usd", "usd"),
           ves: f("total ves", "ves"),
+          area: f("area", "fondo", "departamento"),
           fecha: f("fecha")
         };
 
@@ -248,6 +249,7 @@ const App: React.FC = () => {
               met: String(r[col.met] || "").toLowerCase(),
               m_orig, mon_orig: isUSD ? "USD" : "VES",
               t_reg, usd: v_usd, ves: v_ves,
+              area: String(r[col.area] || "General"),
               fecha: fRaw
             };
           });
