@@ -78,6 +78,7 @@ const App: React.FC = () => {
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const [searchCat, setSearchCat] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("TODAS");
+  const [selectedArea, setSelectedArea] = useState<string>("TODAS");
   const [showExchange, setShowExchange] = useState(false);
 
   const [editingRow, setEditingRow] = useState<any | null>(null);
@@ -405,6 +406,7 @@ const App: React.FC = () => {
     });
 
     const categoryList = Array.from(new Set(data.map(d => d.cat))).sort();
+    const areaList = Array.from(new Set(data.map(d => d.area || "General"))).sort();
 
     const getP = (tp: string) => {
       const dict: any = {};
@@ -435,6 +437,7 @@ const App: React.FC = () => {
       p: { in: getP('ingreso'), out: getP('egreso') },
       trend: trendData,
       categories: categoryList,
+      areas: areaList,
       breakdown
     };
   }, [data, filtroActivo, tasa, paginaActual, activeTab, searchCat, selectedCategory]);
@@ -866,19 +869,25 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
-
           {activeTab === 'reports' && (() => {
-            const allFiltered = filtroActivo === "ANUAL"
-              ? data.filter(d => {
-                const dMonthIdx = ALL_MONTHS.findIndex(m => m.id === d.mes);
-                const parts = String(d.fecha || "").split(/[-/]/);
-                const rowYear = parts.find(p => p.length === 4) || parts.find(p => p.length === 2 && (p === "25" || p === "26"));
-                const currentYear = new Date().getFullYear();
-                const isCorrectYear = rowYear && (rowYear.includes(String(currentYear)) || rowYear.includes(String(currentYear).slice(-2)));
-                return dMonthIdx >= 1 && isCorrectYear;
-              })
-              : data.filter(d => d.mes === filtroActivo);
+            const allFiltered = data.filter(d => {
+              const isPeriod = filtroActivo === "ANUAL"
+                ? (() => {
+                  const dMonthIdx = ALL_MONTHS.findIndex(m => m.id === d.mes);
+                  const parts = String(d.fecha || "").split(/[-/]/);
+                  const rowYear = parts.find(p => p.length === 4) || parts.find(p => p.length === 2 && (p === "25" || p === "26"));
+                  const currentYear = new Date().getFullYear();
+                  return dMonthIdx >= 1 && rowYear && (rowYear.includes(String(currentYear)) || rowYear.includes(String(currentYear).slice(-2)));
+                })()
+                : d.mes === filtroActivo;
+              const isArea = selectedArea === "TODAS" || d.area === selectedArea;
+              return isPeriod && isArea;
+            });
+
             const getMult = (d: any) => { const t = String(d.tipo || "").toLowerCase(); if (/ingreso|entrada/i.test(t)) return 1; if (/egreso|salida|gasto/i.test(t)) return -1; return 0; };
+            const rIn = allFiltered.reduce((a, b) => a + (getMult(b) === 1 ? b.usd : 0), 0);
+            const rOut = allFiltered.reduce((a, b) => a + (getMult(b) === -1 ? b.usd : 0), 0);
+
             const totalTablePages = Math.max(1, Math.ceil(allFiltered.length / REPORT_TABLE_SIZE));
             const cPage = Math.min(reportPage, totalTablePages);
             const visibleRows = allFiltered.slice((cPage - 1) * REPORT_TABLE_SIZE, cPage * REPORT_TABLE_SIZE);
@@ -908,14 +917,31 @@ const App: React.FC = () => {
                 * { transition: none !important; animation: none !important; color: #333 !important; }
               }
               `}</style>
-                <div className="flex justify-between items-center mb-3 no-print">
-                  <div>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 no-print gap-3">
+                  <div className="flex-1">
                     <h2 className={`text-lg font-black uppercase tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>Informe de Gestión</h2>
-                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">ðŸ“Š {filtroActivo === "ANUAL" ? "CONSOLIDADO ANUAL 2026" : `MENSUAL: ${filtroActivo.toUpperCase()}`}</p>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">📊 {filtroActivo === "ANUAL" ? "CONSOLIDADO ANUAL 2026" : `MENSUAL: ${filtroActivo.toUpperCase()}`}</p>
                   </div>
-                  <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
-                    <Printer className="w-3.5 h-3.5" /> Imprimir A4
-                  </button>
+
+                  <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className={`${cardClass} flex items-center gap-2 px-3 py-1.5 rounded-xl border-l-4 border-l-blue-500`}>
+                      <Layers className="w-3.5 h-3.5 text-slate-500" />
+                      <select
+                        value={selectedArea}
+                        onChange={(e) => { setSelectedArea(e.target.value); setReportPage(1); }}
+                        className={`bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-slate-900'} cursor-pointer`}
+                      >
+                        <option value="TODAS" className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>TODAS LAS ÁREAS</option>
+                        {stats.areas.map((a: string) => (
+                          <option key={a} value={a} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>{a.toUpperCase()}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap">
+                      <Printer className="w-3.5 h-3.5" /> Imprimir A4
+                    </button>
+                  </div>
                 </div>
                 <div className={`print-report ${cardClass} rounded-2xl`} style={{ fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", overflow: 'visible' }}>
                   <div className={`px-4 py-1.5 border-b ${isDark ? 'border-slate-700' : 'border-[#2c3e50]'} flex justify-between items-center`}>
@@ -923,7 +949,7 @@ const App: React.FC = () => {
                       <img src={LOGO_URL} className="w-7 h-7 object-contain" alt="Logo JES" />
                       <div>
                         <h1 className={`text-[12px] font-bold uppercase leading-tight ${isDark ? 'text-white' : 'text-[#2c3e50]'}`}>Informe de Gestión de Recursos</h1>
-                        <p className={`text-[8px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Administración y Finanzas</p>
+                        <p className={`text-[8px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Administración y Finanzas {selectedArea !== "TODAS" && `| Área: ${selectedArea}`}</p>
                       </div>
                     </div>
                     <p className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><strong>Periodo:</strong> {filtroActivo === "ANUAL" ? "Ene - Dic 2026" : filtroActivo.toUpperCase() + " 2026"} | <strong>Generado:</strong> {new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
@@ -932,34 +958,56 @@ const App: React.FC = () => {
                     <div className="grid grid-cols-3 gap-2 mb-2">
                       <div className={`print-summary income p-2 rounded-lg text-center border ${isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-[#e8f5e9] border-[#c8e6c9]'}`}>
                         <h3 className={`text-[7px] font-bold uppercase mb-0.5 ${isDark ? 'text-emerald-400' : 'text-slate-500'}`}>Total Ingresos</h3>
-                        <div className={`text-base font-bold ${isDark ? 'text-emerald-400' : 'text-[#2e7d32]'}`}>$ {fmt(stats.m.in)}</div>
+                        <div className={`text-base font-bold ${isDark ? 'text-emerald-400' : 'text-[#2e7d32]'}`}>$ {fmt(rIn)}</div>
                       </div>
                       <div className={`print-summary expense p-2 rounded-lg text-center border ${isDark ? 'bg-rose-500/10 border-rose-500/20' : 'bg-[#ffebee] border-[#ffcdd2]'}`}>
                         <h3 className={`text-[7px] font-bold uppercase mb-0.5 ${isDark ? 'text-rose-400' : 'text-slate-500'}`}>Total Egresos</h3>
-                        <div className={`text-base font-bold ${isDark ? 'text-rose-400' : 'text-[#c62828]'}`}>$ {fmt(stats.m.out)}</div>
+                        <div className={`text-base font-bold ${isDark ? 'text-rose-400' : 'text-[#c62828]'}`}>$ {fmt(rOut)}</div>
                       </div>
                       <div className={`print-summary balance p-2 rounded-lg text-center border ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-[#e3f2fd] border-[#bbdefb]'}`}>
                         <h3 className={`text-[7px] font-bold uppercase mb-0.5 ${isDark ? 'text-blue-400' : 'text-slate-500'}`}>Balance Neto</h3>
-                        <div className={`text-base font-bold ${isDark ? 'text-blue-400' : 'text-[#1565c0]'}`}>$ {fmt(stats.m.in - stats.m.out)}</div>
+                        <div className={`text-base font-bold ${isDark ? 'text-blue-400' : 'text-[#1565c0]'}`}>$ {fmt(rIn - rOut)}</div>
                       </div>
                     </div>
                     <div className={`grid grid-cols-4 gap-2 mb-1.5 p-2 rounded-lg border ${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-                      <div className="text-[9px]">
-                        <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">USD In/Out</p>
-                        <span className="font-mono font-bold">${fmt(stats.breakdown.in.usd)} / ${fmt(stats.breakdown.out.usd)}</span>
-                      </div>
-                      <div className="text-[9px]">
-                        <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">VES In/Out</p>
-                        <span className="font-mono font-bold">Bs.{fmt(stats.breakdown.in.ves)} / {fmt(stats.breakdown.out.ves)}</span>
-                      </div>
-                      <div className="text-[9px]">
-                        <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">Efectivo In/Out</p>
-                        <span className="font-mono font-bold">${fmt(stats.breakdown.in.cash)} / ${fmt(stats.breakdown.out.cash)}</span>
-                      </div>
-                      <div className="text-[9px]">
-                        <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">Banco In/Out</p>
-                        <span className="font-mono font-bold">${fmt(stats.breakdown.in.bank)} / ${fmt(stats.breakdown.out.bank)}</span>
-                      </div>
+                      {(() => {
+                        const subRef = allFiltered.reduce((acc: any, d: any) => {
+                          const mult = getMult(d);
+                          const isInc = mult > 0;
+                          const mon = (d.mon_orig || "USD").toUpperCase();
+                          const met = (d.met || "").toLowerCase();
+                          const monKey = mon.includes("VES") ? "ves" : "usd";
+                          const metKey = met.includes("efectivo") || met.includes("cash") || met.includes("caja") ? "cash" : "bank";
+                          const typeKey = isInc ? "in" : "out";
+                          acc[typeKey][monKey] += Math.abs(d.m_orig);
+                          acc[typeKey][metKey] += Math.abs(d.usd);
+                          return acc;
+                        }, {
+                          in: { usd: 0, ves: 0, cash: 0, bank: 0 },
+                          out: { usd: 0, ves: 0, cash: 0, bank: 0 }
+                        });
+
+                        return (
+                          <>
+                            <div className="text-[9px]">
+                              <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">USD In/Out</p>
+                              <span className="font-mono font-bold">${fmt(subRef.in.usd)} / ${fmt(subRef.out.usd)}</span>
+                            </div>
+                            <div className="text-[9px]">
+                              <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">VES In/Out</p>
+                              <span className="font-mono font-bold">Bs.{fmt(subRef.in.ves)} / {fmt(subRef.out.ves)}</span>
+                            </div>
+                            <div className="text-[9px]">
+                              <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">Efectivo In/Out</p>
+                              <span className="font-mono font-bold">${fmt(subRef.in.cash)} / ${fmt(subRef.out.cash)}</span>
+                            </div>
+                            <div className="text-[9px]">
+                              <p className="text-[7px] font-bold text-slate-500 uppercase mb-0.5">Banco In/Out</p>
+                              <span className="font-mono font-bold">${fmt(subRef.in.bank)} / ${fmt(subRef.out.bank)}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="px-4 pb-1">
@@ -1013,9 +1061,9 @@ const App: React.FC = () => {
                       <tfoot>
                         <tr className={`font-bold border-t-2 ${isDark ? 'border-slate-600 bg-white/5' : 'border-[#2c3e50] bg-slate-100'}`}>
                           <td colSpan={3} className="px-1.5 py-1 text-right text-[9px] uppercase tracking-wider">Totales:</td>
-                          <td className="px-1.5 py-1 text-right text-[9px] font-mono text-emerald-600">$ {fmt(stats.m.in)}</td>
-                          <td className="px-1.5 py-1 text-right text-[9px] font-mono text-rose-600">$ {fmt(stats.m.out)}</td>
-                          <td className="px-1.5 py-1 text-right text-[9px] font-mono font-black">$ {fmt(stats.m.in - stats.m.out)}</td>
+                          <td className="px-1.5 py-1 text-right text-[9px] font-mono text-emerald-600">$ {fmt(rIn)}</td>
+                          <td className="px-1.5 py-1 text-right text-[9px] font-mono text-rose-600">$ {fmt(rOut)}</td>
+                          <td className="px-1.5 py-1 text-right text-[9px] font-mono font-black">$ {fmt(rIn - rOut)}</td>
                         </tr>
                       </tfoot>
                     </table>
@@ -1023,9 +1071,9 @@ const App: React.FC = () => {
                   <div className="px-4 py-2 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0' }}>
                     <div className={`p-2 rounded-lg border mb-2 ${isDark ? 'bg-white/5 border-white/10' : 'bg-[#fafafa] border-slate-200'}`}>
                       <p className={`text-[9px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        <strong>Nota:</strong> {stats.m.in > stats.m.out
-                          ? `Superávit de $${fmt(stats.m.in - stats.m.out)}. Se recomienda reservar un porcentaje para contingencias.`
-                          : `Déficit de $${fmt(stats.m.out - stats.m.in)}. Revisar gastos operativos y evaluar fuentes adicionales.`}
+                        <strong>Nota:</strong> {rIn > rOut
+                          ? `Superávit de $${fmt(rIn - rOut)}. Se recomienda reservar un porcentaje para contingencias.`
+                          : `Déficit de $${fmt(rOut - rIn)}. Revisar gastos operativos y evaluar fuentes adicionales.`}
                       </p>
                     </div>
                     <div className="print-signatures flex justify-between pt-1">

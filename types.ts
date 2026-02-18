@@ -7,6 +7,7 @@ export interface Transaction {
   categoria: string;
   descripcion: string;
   metodo: string;
+  area: string;
   total_usd: number;
   total_ves: number;
 }
