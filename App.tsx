@@ -78,7 +78,6 @@ const App: React.FC = () => {
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const [searchCat, setSearchCat] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("TODAS");
-  const [selectedArea, setSelectedArea] = useState<string>("TODAS");
   const [showExchange, setShowExchange] = useState(false);
 
   const [editingRow, setEditingRow] = useState<any | null>(null);
@@ -211,7 +210,6 @@ const App: React.FC = () => {
           t: f("tasa"),
           usd: f("total usd", "usd"),
           ves: f("total ves", "ves"),
-          area: f("area", "fondo", "departamento"),
           fecha: f("fecha")
         };
 
@@ -249,7 +247,6 @@ const App: React.FC = () => {
               met: String(r[col.met] || "").toLowerCase(),
               m_orig, mon_orig: isUSD ? "USD" : "VES",
               t_reg, usd: v_usd, ves: v_ves,
-              area: String(r[col.area] || "General"),
               fecha: fRaw
             };
           });
@@ -408,7 +405,6 @@ const App: React.FC = () => {
     });
 
     const categoryList = Array.from(new Set(data.map(d => d.cat))).sort();
-    const areaList = Array.from(new Set(data.map(d => d.area || "General"))).sort();
 
     const getP = (tp: string) => {
       const dict: any = {};
@@ -439,7 +435,6 @@ const App: React.FC = () => {
       p: { in: getP('ingreso'), out: getP('egreso') },
       trend: trendData,
       categories: categoryList,
-      areas: areaList,
       breakdown
     };
   }, [data, filtroActivo, tasa, paginaActual, activeTab, searchCat, selectedCategory]);
@@ -882,8 +877,8 @@ const App: React.FC = () => {
                   return dMonthIdx >= 1 && rowYear && (rowYear.includes(String(currentYear)) || rowYear.includes(String(currentYear).slice(-2)));
                 })()
                 : d.mes === filtroActivo;
-              const isArea = selectedArea === "TODAS" || d.area === selectedArea;
-              return isPeriod && isArea;
+              const isCat = selectedCategory === "TODAS" || d.cat === selectedCategory;
+              return isPeriod && isCat;
             });
 
             const getMult = (d: any) => { const t = String(d.tipo || "").toLowerCase(); if (/ingreso|entrada/i.test(t)) return 1; if (/egreso|salida|gasto/i.test(t)) return -1; return 0; };
@@ -929,13 +924,13 @@ const App: React.FC = () => {
                     <div className={`${cardClass} flex items-center gap-2 px-3 py-1.5 rounded-xl border-l-4 border-l-blue-500`}>
                       <Layers className="w-3.5 h-3.5 text-slate-500" />
                       <select
-                        value={selectedArea}
-                        onChange={(e) => { setSelectedArea(e.target.value); setReportPage(1); }}
+                        value={selectedCategory}
+                        onChange={(e) => { setSelectedCategory(e.target.value); setReportPage(1); }}
                         className={`bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-slate-900'} cursor-pointer`}
                       >
-                        <option value="TODAS" className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>TODAS LAS ÁREAS</option>
-                        {stats.areas.map((a: string) => (
-                          <option key={a} value={a} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>{a.toUpperCase()}</option>
+                        <option value="TODAS" className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>TODAS LAS CATEGORÍAS</option>
+                        {stats.categories.map((c: string) => (
+                          <option key={c} value={c} className={isDark ? 'bg-[#0a0c10]' : 'bg-white'}>{c.toUpperCase()}</option>
                         ))}
                       </select>
                     </div>
@@ -951,7 +946,7 @@ const App: React.FC = () => {
                       <img src={LOGO_URL} className="w-7 h-7 object-contain" alt="Logo JES" />
                       <div>
                         <h1 className={`text-[12px] font-bold uppercase leading-tight ${isDark ? 'text-white' : 'text-[#2c3e50]'}`}>Informe de Gestión de Recursos</h1>
-                        <p className={`text-[8px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Administración y Finanzas {selectedArea !== "TODAS" && `| Área: ${selectedArea}`}</p>
+                        <p className={`text-[8px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Administración y Finanzas {selectedCategory !== "TODAS" && `| Categoría: ${selectedCategory}`}</p>
                       </div>
                     </div>
                     <p className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><strong>Periodo:</strong> {filtroActivo === "ANUAL" ? "Ene - Dic 2026" : filtroActivo.toUpperCase() + " 2026"} | <strong>Generado:</strong> {new Date().toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>

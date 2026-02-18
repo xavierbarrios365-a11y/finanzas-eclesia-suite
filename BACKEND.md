@@ -47,7 +47,6 @@ function getMapping(headersRow) {
     c: find(["cat"]),
     d: find(["desc"]),
     m: find(["metodo"]), 
-    a: find(["area", "fondo", "departamento"]),
     mt: find(["monto"]),
     mn: find(["moneda"]),
     ts: find(["tasa"])
@@ -92,7 +91,6 @@ function syncAllResponses() {
       cat: idx.c !== -1 ? row[idx.c] : "General",
       desc: idx.d !== -1 ? row[idx.d] : "",
       met: idx.m !== -1 ? row[idx.m] : "Efectivo",
-      area: idx.a !== -1 ? row[idx.a] : "General",
       monto: parseNum(row[idx.mt]),
       moneda: idx.mn !== -1 ? (String(row[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES") : "USD",
       tasa: idx.ts !== -1 ? parseNum(row[idx.ts]) : 0
@@ -136,7 +134,6 @@ function onFormSubmit(e) {
       cat: getV(["categoría"]), // EXCLUIDO "cat" para evitar conflicto con "marcatemporal"
       desc: getV(["descripciondetalle", "desc"]), 
       met: getV(["metodopago", "metodo"]), 
-      area: getV(["area", "fondo", "departamento"]),
       monto: parseNum(getV(["monto"])), 
       moneda: getV(["moneda", "monedatransaccion"]).toUpperCase().includes("USD") ? "USD" : "VES", 
       tasa: parseNum(getV(["tasa", "tasacambio"]))
@@ -221,7 +218,6 @@ function registrarFila(v, silent = false) {
       v.cat, 
       v.desc, 
       v.met, 
-      v.area || "General",
       v.monto, 
       v.moneda, 
       tasa, 
@@ -273,7 +269,6 @@ function doPost(e) {
       cat: data.cat,
       desc: data.desc,
       met: data.met,
-      area: data.area || "General",
       monto: parseNum(data.m_orig || data.monto || 0),
       moneda: data.mon_orig || data.moneda || "USD",
       tasa: parseNum(data.t_reg || data.tasa || 0),
@@ -457,7 +452,7 @@ function setupSystem() {
   
   // 1. Configurar Base de Datos Maestra
   let sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
-  const headers = ["ID", "Fecha", "Año", "Q", "Mes", "Tipo", "Cat", "Desc", "Metodo", "Area", "Monto Orig", "Moneda", "Tasa", "Total USD", "Total VES"];
+  const headers = ["ID", "Fecha", "Año", "Q", "Mes", "Tipo", "Cat", "Desc", "Metodo", "Monto Orig", "Moneda", "Tasa", "Total USD", "Total VES"];
   sh.getRange(1, 1, 1, headers.length).setValues([headers]).setBackground("#1e293b").setFontColor("white").setFontWeight("bold");
   sh.setFrozenRows(1);
 
@@ -517,7 +512,6 @@ function repararRegistrosErroneos() {
     c: findH(["categoría"]), // Búsqueda exacta para evitar conflicto con marcatemporal
     d: findH(["descripciondetalle", "desc"]),
     m: findH(["metodopago", "metodo"]),
-    a: findH(["area", "fondo", "departamento"]),
     mt: findH(["monto"]),
     mn: findH(["moneda", "monedatransaccion"]),
     ts: findH(["tasa", "tasacambio"])
@@ -552,7 +546,6 @@ function repararRegistrosErroneos() {
           cat: match[idx.c],
           desc: match[idx.d],
           met: match[idx.m],
-          area: idx.a !== -1 ? match[idx.a] : "General",
           monto: parseNum(match[idx.mt]),
           moneda: String(match[idx.mn]).toUpperCase().includes("USD") ? "USD" : "VES",
           tasa: parseNum(match[idx.ts])
